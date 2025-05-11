@@ -5,7 +5,7 @@ public class Orc : MonsterUnit
     private bool isEnraged = false;
     private float enrageThreshold = 0.5f; // Enrages at 50% HP
     private float enrageDamageBonus = 1.5f; // 50% more damage when enraged
-    
+
     private void Awake()
     {
         unitName = "Orc";
@@ -15,42 +15,76 @@ public class Orc : MonsterUnit
         unitType = UnitType.Melee;
         aggressiveness = 0.5f; // Balanced targeting
     }
-    
+
     public override void TakeDamage(int damage)
     {
         base.TakeDamage(damage);
-        
+
         // Check if we should enrage
         if (!isEnraged && currentHealth <= (maxHealth * enrageThreshold))
         {
             isEnraged = true;
             attackDamage = Mathf.RoundToInt(attackDamage * enrageDamageBonus);
             Debug.Log(unitName + " becomes enraged! Attack increased to " + attackDamage);
-            
+
+            // Update info layer about enrage
+            if (GameInfoLayer.Instance != null)
+            {
+                GameInfoLayer.Instance.AddLogEntry($"{unitName} becomes enraged! Attack increased to {attackDamage}");
+            }
+
             // Visual effect for enrage
             // (Add particle effect or color change here)
         }
     }
-    
+
+    // Changed return type to int
+    public override int Attack(Unit target)
+    {
+        if (target != null && target.isAlive)
+        {
+            // Apply damage
+            target.TakeDamage(attackDamage);
+
+            // Log the attack
+            Debug.Log($"{unitName} {(isEnraged ? "furiously" : "")} attacks {target.unitName} for {attackDamage} damage!");
+
+            // Update info layer
+            if (GameInfoLayer.Instance != null)
+            {
+                GameInfoLayer.Instance.RegisterBattleAction(
+                    unitName,
+                    target.unitName,
+                    isEnraged ? "furiously attacks" : "attacks",
+                    attackDamage
+                );
+            }
+
+            return attackDamage;
+        }
+
+        return 0;
+    }
+
     // Orc targets randomly
     public override PlayerUnit SelectTarget(PlayerUnit[] possibleTargets)
     {
         // Filter for only alive targets
-        System.Collections.Generic.List<PlayerUnit> aliveTargets = 
+        System.Collections.Generic.List<PlayerUnit> aliveTargets =
             new System.Collections.Generic.List<PlayerUnit>();
-        
+
         foreach (PlayerUnit target in possibleTargets)
         {
             if (target.isAlive)
                 aliveTargets.Add(target);
         }
-        
+
         if (aliveTargets.Count > 0)
         {
             int randomIndex = Random.Range(0, aliveTargets.Count);
             return aliveTargets[randomIndex];
         }
-        
+
         return null;
     }
 }

@@ -138,9 +138,9 @@ Transform:
   m_GameObject: {fileID: 3410116004051717238}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.94903874, y: -0.61736846, z: 0.2203001}
-  m_LocalScale: {x: 0.2, y: 0.2, z: 0.2}
-  m_ConstrainProportionsScale: 0
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 0.1, y: 0.1, z: 0.1}
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 8924574740268501141}
   - {fileID: 2570122021122050005}
@@ -162,10 +162,8 @@ MonoBehaviour:
   maxHealth: 0
   currentHealth: 0
   attackDamage: 0
-  unitType: 0
   isAlive: 1
-  unitModel: {fileID: 0}
-  attackPoint: {fileID: 0}
+  unitType: 0
   healthBar: {fileID: 0}
   abilityCooldown: 0
   currentCooldown: 0
@@ -654,7 +652,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b84880641a55f784ebdb8db2dce6f965, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  slider: {fileID: 0}
+  fillImage: {fileID: 0}
+  healthText: {fileID: 0}
+  showNumbers: 1
+  hideAtFullHealth: 0
+  alwaysFaceCamera: 1
+  healthyColor: {r: 0, g: 0.75, b: 0, a: 1}
+  middleColor: {r: 0.9, g: 0.9, b: 0, a: 1}
+  lowColor: {r: 0.9, g: 0, b: 0, a: 1}
 --- !u!1 &8443684355466433171
 GameObject:
   m_ObjectHideFlags: 0

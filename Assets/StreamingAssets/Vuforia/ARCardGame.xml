@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <QCARConfig>
   <Tracking>
-    <ImageTarget name="red-triangle" size="0.200000 0.200000" />
-    <ImageTarget name="yellow-square" size="0.200000 0.200000" />
-    <ImageTarget name="polygon" size="0.200000 0.200000" />
-    <ImageTarget name="circle" size="0.200000 0.200000" />
-    <ImageTarget name="rectangle" size="0.200000 0.200000" />
+    <ImageTarget name="clover" size="0.100000 0.155455" />
+    <ImageTarget name="spades" size="0.100000 0.154472" />
+    <ImageTarget name="diamond" size="0.100000 0.154826" />
+    <ImageTarget name="hearts" size="0.100000 0.154681" />
+    <ImageTarget name="joker" size="0.100000 0.155162" />
   </Tracking>
 </QCARConfig>
