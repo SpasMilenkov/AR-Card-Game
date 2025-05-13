@@ -9,6 +9,9 @@ public class SkeletonArcher : MonsterUnit
 
     private void Awake()
     {
+        // Get animator component
+        animator = GetComponent<Animator>();
+
         unitName = "Skeleton Archer";
         maxHealth = 70;
         currentHealth = maxHealth;
@@ -21,6 +24,13 @@ public class SkeletonArcher : MonsterUnit
     public void StartTurn()
     {
         turnCounter++;
+
+        // Update animation state or parameters if needed
+        if (animator != null && turnCounter >= volleyInterval - 1)
+        {
+            // Optional: Show a "preparing" animation if volley is coming next turn
+            animator.SetBool("PreparingVolley", turnCounter >= volleyInterval - 1);
+        }
 
         // Update info layer
         if (GameInfoLayer.Instance != null)
@@ -42,14 +52,33 @@ public class SkeletonArcher : MonsterUnit
         // Check if it's time for volley attack
         if (turnCounter >= volleyInterval)
         {
+            // Play volley animation
+            if (animator != null)
+            {
+                // You can use "Ability" for the volley animation if you don't have a specific one
+                animator.SetTrigger("Ability");
+            }
+
             // Reset counter
             turnCounter = 0;
+
+            // Reset animation state
+            if (animator != null)
+            {
+                animator.SetBool("PreparingVolley", false);
+            }
 
             // Perform volley attack
             return VolleyAttack(target);
         }
         else
         {
+            // Play normal attack animation
+            if (animator != null)
+            {
+                animator.SetTrigger("Attack");
+            }
+
             // Normal attack
             if (target != null && target.isAlive)
             {
@@ -60,10 +89,8 @@ public class SkeletonArcher : MonsterUnit
                 {
                     GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "shoots", attackDamage);
                 }
-
                 return attackDamage;
             }
-
             return 0;
         }
     }
@@ -75,7 +102,6 @@ public class SkeletonArcher : MonsterUnit
             return 0;
 
         Debug.Log(unitName + " fires a volley of " + volleyArrowCount + " arrows!");
-
         int arrowDamage = Mathf.RoundToInt(attackDamage * arrowDamageMultiplier);
         int totalDamage = 0;
 

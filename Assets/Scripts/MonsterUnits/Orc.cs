@@ -8,6 +8,9 @@ public class Orc : MonsterUnit
 
     private void Awake()
     {
+        // Get animator component
+        animator = GetComponent<Animator>();
+
         unitName = "Orc";
         maxHealth = 100;
         currentHealth = maxHealth;
@@ -25,6 +28,14 @@ public class Orc : MonsterUnit
         {
             isEnraged = true;
             attackDamage = Mathf.RoundToInt(attackDamage * enrageDamageBonus);
+
+            // Play enrage animation if available
+            if (animator != null)
+            {
+                // You can use "Ability" for this if you don't have a specific "Enrage" animation
+                animator.SetTrigger("Ability");
+            }
+
             Debug.Log(unitName + " becomes enraged! Attack increased to " + attackDamage);
 
             // Update info layer about enrage
@@ -43,6 +54,17 @@ public class Orc : MonsterUnit
     {
         if (target != null && target.isAlive)
         {
+            // Play attack animation with different parameters based on enrage state
+            if (animator != null)
+            {
+                if (isEnraged)
+                {
+                    // You can set a parameter to modify the animation when enraged
+                    animator.SetBool("IsEnraged", true);
+                }
+                animator.SetTrigger("Attack");
+            }
+
             // Apply damage
             target.TakeDamage(attackDamage);
 
@@ -59,10 +81,8 @@ public class Orc : MonsterUnit
                     attackDamage
                 );
             }
-
             return attackDamage;
         }
-
         return 0;
     }
 
@@ -72,19 +92,16 @@ public class Orc : MonsterUnit
         // Filter for only alive targets
         System.Collections.Generic.List<PlayerUnit> aliveTargets =
             new System.Collections.Generic.List<PlayerUnit>();
-
         foreach (PlayerUnit target in possibleTargets)
         {
             if (target.isAlive)
                 aliveTargets.Add(target);
         }
-
         if (aliveTargets.Count > 0)
         {
             int randomIndex = Random.Range(0, aliveTargets.Count);
             return aliveTargets[randomIndex];
         }
-
         return null;
     }
 }

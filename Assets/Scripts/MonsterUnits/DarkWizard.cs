@@ -10,6 +10,9 @@ public class DarkWizard : MonsterUnit
 
     private void Awake()
     {
+        // Get the animator component
+        animator = GetComponent<Animator>();
+
         unitName = "Dark Wizard";
         maxHealth = 80;
         currentHealth = maxHealth;
@@ -29,14 +32,33 @@ public class DarkWizard : MonsterUnit
         switch (spellType)
         {
             case 0:
+                // Play Shadow Bolt animation
+                if (animator != null)
+                {
+                    animator.SetTrigger("Attack"); // Use standard attack for shadow bolt
+                }
+
                 // Shadow Bolt (single target)
                 damageDealt = CastShadowBolt(target);
                 break;
             case 1:
+                // Play AoE spell animation
+                if (animator != null)
+                {
+                    animator.SetTrigger("Ability"); // Use ability animation for AoE
+                }
+
                 // AoE spell
                 damageDealt = CastAoeSpell();
                 break;
             case 2:
+                // Play Heal animation
+                if (animator != null)
+                {
+                    // You could use a special "Heal" trigger if you have one, or reuse "Ability"
+                    animator.SetTrigger("Ability");
+                }
+
                 // Heal allies
                 CastHeal();
                 damageDealt = 0; // Healing doesn't deal damage
@@ -158,10 +180,6 @@ public class DarkWizard : MonsterUnit
             {
                 int healing = Mathf.RoundToInt(healAmount);
                 monster.currentHealth = Mathf.Min(monster.currentHealth + healing, monster.maxHealth);
-
-                // Update health bar
-                if (monster.healthBar != null)
-                    monster.healthBar.UpdateHealthBar(monster.currentHealth, monster.maxHealth);
 
                 unitsHealed++;
                 totalHealing += healing;

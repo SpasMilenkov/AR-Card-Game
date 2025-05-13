@@ -141,7 +141,7 @@ public class CombatSystem : MonoBehaviour
                 if (GameManager.Instance != null)
                 {
                     // Set a small delay before moving to next unit for better visual flow
-                    StartCoroutine(DelayedNextUnit(0.5f));
+                    StartCoroutine(DelayedNextUnit(3f));
                 }
 
                 foundTarget = true;
@@ -226,7 +226,7 @@ public class CombatSystem : MonoBehaviour
             GameManager.Instance.EndPlayerTurn();
         }
     }
-    
+
     // Add this simple component to rotate the indicator:
     public class RotateObject : MonoBehaviour
     {

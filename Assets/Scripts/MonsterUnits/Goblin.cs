@@ -7,6 +7,9 @@ public class Goblin : MonsterUnit
 
     private void Awake()
     {
+        // Get animator component
+        animator = GetComponent<Animator>();
+
         unitName = "Goblin";
         maxHealth = 60; // Low HP
         currentHealth = maxHealth;
@@ -23,6 +26,12 @@ public class Goblin : MonsterUnit
         // First attack
         if (target != null && target.isAlive)
         {
+            // Play attack animation
+            if (animator != null)
+            {
+                animator.SetTrigger("Attack");
+            }
+
             target.TakeDamage(attackDamage);
             totalDamage += attackDamage;
 
@@ -36,11 +45,34 @@ public class Goblin : MonsterUnit
         // Check if target is still alive and we can do second attack
         if (target != null && target.isAlive)
         {
+            // Wait a bit before second attack
+            StartCoroutine(SecondAttackWithDelay(target));
+
             // Second attack with reduced damage
+            int secondDamage = Mathf.RoundToInt(attackDamage * secondAttackDamageMultiplier);
+            totalDamage += secondDamage; // Add to total damage for return value
+        }
+
+        return totalDamage;
+    }
+
+    // Coroutine to add delay between attacks
+    private System.Collections.IEnumerator SecondAttackWithDelay(Unit target)
+    {
+        // Wait for first animation to mostly complete
+        yield return new WaitForSeconds(0.5f);
+
+        if (target != null && target.isAlive)
+        {
+            // Play attack animation again for second attack
+            if (animator != null)
+            {
+                animator.SetTrigger("Attack");
+            }
+
             int secondDamage = Mathf.RoundToInt(attackDamage * secondAttackDamageMultiplier);
             Debug.Log(unitName + " attacks again for " + secondDamage + " damage!");
             target.TakeDamage(secondDamage);
-            totalDamage += secondDamage;
 
             // Update info layer for second attack
             if (GameInfoLayer.Instance != null)
@@ -48,8 +80,6 @@ public class Goblin : MonsterUnit
                 GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "attacks again", secondDamage);
             }
         }
-
-        return totalDamage;
     }
 
     // Goblin selects the weakest (lowest HP) target

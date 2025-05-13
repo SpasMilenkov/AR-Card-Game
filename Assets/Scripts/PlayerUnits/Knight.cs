@@ -8,6 +8,9 @@ public class Knight : PlayerUnit
 
     private void Awake()
     {
+        // Get animator component
+        animator = GetComponent<Animator>();
+
         unitName = "Knight";
         maxHealth = 150; // Higher HP
         currentHealth = maxHealth;
@@ -21,6 +24,12 @@ public class Knight : PlayerUnit
     {
         if (CanUseAbility())
         {
+            // Play shield block animation
+            if (animator != null)
+            {
+                animator.SetTrigger("Ability");
+            }
+
             shieldRemainingTurns = shieldDuration;
 
             // Visual feedback
@@ -38,12 +47,25 @@ public class Knight : PlayerUnit
 
     public override void TakeDamage(int damage)
     {
+        // Play take damage animation
+        if (animator != null)
+        {
+            // If shield is active, play a block animation if available
+            if (shieldRemainingTurns > 0)
+            {
+                animator.SetTrigger("Ability");
+            }
+            else
+            {
+                animator.SetTrigger("TakeDamage");
+            }
+        }
+
         // Apply damage reduction if shield is active
         if (shieldRemainingTurns > 0)
         {
             int reducedDamage = Mathf.RoundToInt(damage * (1 - damageReductionAmount));
             base.TakeDamage(reducedDamage);
-
             Debug.Log(unitName + "'s shield absorbs " +
                       (damage - reducedDamage) + " damage!");
         }
@@ -52,11 +74,11 @@ public class Knight : PlayerUnit
             base.TakeDamage(damage);
         }
     }
+
     public void StartTurn()
     {
         // This is called at the start of each player turn
         // Update shield status indicator if needed
-
         if (shieldRemainingTurns > 0)
         {
             Debug.Log($"{unitName}'s shield is active for {shieldRemainingTurns} more turns");
@@ -77,6 +99,12 @@ public class Knight : PlayerUnit
 
             if (shieldRemainingTurns <= 0)
             {
+                // Play shield fade animation if available
+                if (animator != null)
+                {
+                    animator.SetTrigger("ShieldDown");
+                }
+
                 // Deactivate shield visual
                 Transform shield = transform.Find("ShieldEffect");
                 if (shield != null)

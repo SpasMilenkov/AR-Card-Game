@@ -7,6 +7,9 @@ public class Troll : MonsterUnit
 
     private void Awake()
     {
+        // Get animator component
+        animator = GetComponent<Animator>();
+
         unitName = "Troll";
         maxHealth = 180; // Very high HP
         currentHealth = maxHealth;
@@ -24,20 +27,22 @@ public class Troll : MonsterUnit
         // Regenerate HP
         if (isAlive)
         {
+            // Play regeneration animation/effect if available
+            if (animator != null && !canAttackThisTurn)
+            {
+                // If you have a specific regeneration animation, use it
+                // Otherwise, you could use a generic "Idle" animation
+                animator.SetTrigger("Idle");
+            }
+
             int regenAmount = Mathf.RoundToInt(regenerationAmount);
             currentHealth = Mathf.Min(currentHealth + regenAmount, maxHealth);
-
-            // Update health bar
-            if (healthBar != null)
-                healthBar.UpdateHealthBar(currentHealth, maxHealth);
-
             Debug.Log(unitName + " regenerates " + regenAmount + " HP!");
 
             // Update info layer
             if (GameInfoLayer.Instance != null)
             {
                 GameInfoLayer.Instance.AddLogEntry($"{unitName} regenerates {regenAmount} HP");
-
                 if (!canAttackThisTurn)
                 {
                     GameInfoLayer.Instance.AddLogEntry($"{unitName} is resting this turn");
@@ -51,9 +56,14 @@ public class Troll : MonsterUnit
     {
         if (canAttackThisTurn && target != null && target.isAlive)
         {
+            // Play attack animation only when able to attack
+            if (animator != null)
+            {
+                animator.SetTrigger("Attack");
+            }
+
             // Apply damage
             target.TakeDamage(attackDamage);
-
             Debug.Log($"{unitName} smashes {target.unitName} for {attackDamage} damage!");
 
             // Update info layer
@@ -61,13 +71,11 @@ public class Troll : MonsterUnit
             {
                 GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "smashes", attackDamage);
             }
-
             return attackDamage;
         }
         else
         {
             Debug.Log(unitName + " is recovering and cannot attack this turn.");
-
             return 0;
         }
     }
@@ -98,4 +106,7 @@ public class Troll : MonsterUnit
 
         return null;
     }
+
+    // Troll has no ability, so we don't need to override UseAbility
+    // It will never be called since CanUseAbility() isn't implemented
 }

@@ -24,25 +24,33 @@ public class Unit : MonoBehaviour
         Assassin
     }
 
+    // Reference to the animator component
+    protected Animator animator;
+
+    void Awake()
+    {
+        // Get the animator component
+        animator = GetComponent<Animator>();
+    }
+    protected virtual void Start()
+    {
+        if (animator != null)
+        {
+            if (animator.runtimeAnimatorController == null)
+            {
+                Debug.LogError($"[{unitName}] No runtime animator controller assigned!");
+            }
+            else
+            {
+                Debug.Log($"[{unitName}] Using animator controller: {animator.runtimeAnimatorController.name}");
+            }
+        }
+        Debug.LogError($"[{unitName}] No animator component found!");
+    }
+
     public UnitType unitType;
 
     // Health bar reference
-    public HealthBar healthBar;
-
-    protected virtual void Start()
-    {
-        // Find health bar if not set
-        if (healthBar == null)
-        {
-            healthBar = GetComponentInChildren<HealthBar>();
-        }
-
-        // Initialize health bar
-        if (healthBar != null)
-        {
-            healthBar.UpdateHealthBar(currentHealth, maxHealth);
-        }
-    }
 
     /// <summary>
     /// Deal damage to a target unit
@@ -51,6 +59,12 @@ public class Unit : MonoBehaviour
     {
         if (target != null && target.isAlive)
         {
+            // Play attack animation
+            if (animator != null)
+            {
+                animator.SetTrigger("Attack");
+            }
+
             Debug.Log(unitName + " attacks " + target.unitName + " for " + attackDamage + " damage!");
             target.TakeDamage(attackDamage);
 
@@ -65,11 +79,16 @@ public class Unit : MonoBehaviour
     /// <summary>
     /// Take damage and update health
     /// </summary>
-
     public virtual void TakeDamage(int damage)
     {
         if (!isAlive)
             return;
+
+        // Play take damage animation
+        if (animator != null)
+        {
+            animator.SetTrigger("TakeDamage");
+        }
 
         // Log before damage is applied
         if (GameInfoLayer.Instance != null)
@@ -83,12 +102,6 @@ public class Unit : MonoBehaviour
         if (GameInfoLayer.Instance != null)
         {
             GameInfoLayer.Instance.AddLogEntry($"RESULT: {unitName} new HP: {currentHealth}/{maxHealth}");
-        }
-
-        // Update health bar
-        if (healthBar != null)
-        {
-            healthBar.UpdateHealthBar(currentHealth, maxHealth);
         }
 
         // Add visual damage effect
@@ -108,6 +121,13 @@ public class Unit : MonoBehaviour
     protected virtual void Die()
     {
         isAlive = false;
+
+        // Play death animation
+        if (animator != null)
+        {
+            animator.SetTrigger("Die");
+        }
+
         Debug.Log(unitName + " has been defeated!");
 
         // Visual death effect (optional)
@@ -134,6 +154,12 @@ public class Unit : MonoBehaviour
     /// </summary>
     public virtual void UseAbility(Unit[] targets)
     {
+        // Play ability animation
+        if (animator != null)
+        {
+            animator.SetTrigger("Ability");
+        }
+
         // Override in derived classes
         Debug.Log(unitName + " uses an ability!");
     }

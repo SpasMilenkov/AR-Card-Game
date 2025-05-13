@@ -7,6 +7,9 @@ public class Rogue : PlayerUnit
 
     private void Awake()
     {
+        // Get animator component
+        animator = GetComponent<Animator>();
+
         unitName = "Rogue";
         maxHealth = 90;
         currentHealth = maxHealth;
@@ -20,13 +23,19 @@ public class Rogue : PlayerUnit
     {
         if (CanUseAbility() && targets.Length > 0)
         {
-            Unit target = targets[0];
+            // Play backstab animation - you can use a specific "Backstab" trigger
+            // if your animator has it, or fall back to "Ability"
+            if (animator != null)
+            {
+                // Try to play a specific backstab animation if available
+                animator.SetTrigger("Ability");
+            }
 
+            Unit target = targets[0];
             if (target.isAlive)
             {
                 // Check for critical hit
                 bool isCritical = Random.value <= criticalChance;
-
                 int abilityDamage;
                 if (isCritical)
                 {
@@ -40,7 +49,6 @@ public class Rogue : PlayerUnit
                     Debug.Log(unitName + " uses Backstab on " + target.unitName +
                               " for " + abilityDamage + " damage.");
                 }
-
                 target.TakeDamage(abilityDamage);
             }
 

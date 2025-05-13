@@ -40,6 +40,12 @@ public class PlayerUnit : Unit
     {
         if (CanUseAbility())
         {
+            // Play ability animation
+            if (animator != null)
+            {
+                animator.SetTrigger("Ability");
+            }
+
             // Ability logic in child classes
             currentCooldown = abilityCooldown;
 

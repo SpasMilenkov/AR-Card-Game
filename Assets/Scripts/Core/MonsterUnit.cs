@@ -40,6 +40,12 @@ public class MonsterUnit : Unit
     {
         if (target != null && target.isAlive)
         {
+            // Play attack animation
+            if (animator != null)
+            {
+                animator.SetTrigger("Attack");
+            }
+
             int damage = attackDamage;
             target.TakeDamage(damage);
 
@@ -56,6 +62,13 @@ public class MonsterUnit : Unit
     protected override void Die()
     {
         isAlive = false;
+
+        // Play death animation
+        if (animator != null)
+        {
+            animator.SetTrigger("Die");
+        }
+
         Debug.Log(unitName + " has been defeated!");
 
         // Play death animation
