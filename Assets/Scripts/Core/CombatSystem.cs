@@ -26,11 +26,10 @@ public class CombatSystem : MonoBehaviour
     public float targetSelectionMaxDistance = 100f; // Max distance for raycasting
 
     [Header("Visual Feedback")]
-    public GameObject attackEffectPrefab;  // Optional visual effect for attacks
-    public GameObject abilityEffectPrefab; // Optional visual effect for abilities
+    public GameObject attackEffectPrefab;
+    public GameObject abilityEffectPrefab;
     public GameObject targetSelectionIndicatorPrefab; // Assign a circular arrow prefab in the editor
     private GameObject currentSelectionIndicator;
-
 
     // Private state
     private bool isSelectingTarget = false;
@@ -40,13 +39,10 @@ public class CombatSystem : MonoBehaviour
     private void Start()
     {
         // Get the layers that monsters are on
-        int monsterLayer = LayerMask.NameToLayer("Default"); // Or whatever layer your monsters are on
+        int monsterLayer = LayerMask.NameToLayer("Default");
 
         // Set a debug message
         Debug.Log($"Monster layer: {monsterLayer}. Ensure this layer is enabled in Physics settings.");
-
-        // No need to change layer masks in code - just make sure in the Unity Editor 
-        // that your Physics settings have the appropriate layers checked for raycasting
     }
 
     private void Update()
@@ -81,18 +77,14 @@ public class CombatSystem : MonoBehaviour
 
     private void HandleTargetSelection(Vector2 screenPosition)
     {
-        // Add debug visualization to help troubleshoot
         DebugRaycastVisualization(screenPosition);
 
         Ray ray = Camera.main.ScreenPointToRay(screenPosition);
 
-        // Use RaycastAll instead of single Raycast for more reliable detection
         RaycastHit[] hits = Physics.RaycastAll(ray, targetSelectionMaxDistance);
 
-        // Log how many hits we got
         Debug.Log($"Raycast detected {hits.Length} hits");
 
-        // Sort hits by distance to prioritize closer objects
         System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
         bool foundTarget = false;
@@ -110,10 +102,7 @@ public class CombatSystem : MonoBehaviour
 
             if (monster != null && monster.isAlive)
             {
-                // Log successful targeting
-                Debug.Log($"VALID TARGET FOUND: {monster.unitName}");
 
-                // Target selected - proceed with attack or ability
                 if (GameInfoLayer.Instance != null)
                 {
                     GameInfoLayer.Instance.AddLogEntry($"Selected target: {monster.unitName}");
@@ -137,12 +126,9 @@ public class CombatSystem : MonoBehaviour
                 if (GameManager.Instance?.uiManager != null)
                     GameManager.Instance.uiManager.targetSelectionPanel.SetActive(false);
 
-                // Move to next unit or end player turn
-                if (GameManager.Instance != null)
-                {
-                    // Set a small delay before moving to next unit for better visual flow
-                    StartCoroutine(DelayedNextUnit(3f));
-                }
+                // Wait for attack/ability animation to complete before moving to next unit
+                float actionDelay = isUsingAbility ? 2.5f : 1.5f;
+                StartCoroutine(DelayedNextUnit(actionDelay));
 
                 foundTarget = true;
                 break;
@@ -151,9 +137,6 @@ public class CombatSystem : MonoBehaviour
 
         if (!foundTarget)
         {
-            // Debug what we hit if no valid target was found
-            Debug.Log("No valid target found. Touched position: " + screenPosition);
-
             // Provide feedback to player
             if (GameInfoLayer.Instance != null)
             {
@@ -212,12 +195,10 @@ public class CombatSystem : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
 
-        // Check if we should end turn
         PlayerUnit activeUnit = GameManager.Instance.currentActiveUnit;
 
         if (activeUnit != null)
         {
-            // This will mark the unit as having acted and find the next unit
             GameManager.Instance.SetNextActivePlayerUnit();
         }
         else
@@ -227,7 +208,6 @@ public class CombatSystem : MonoBehaviour
         }
     }
 
-    // Add this simple component to rotate the indicator:
     public class RotateObject : MonoBehaviour
     {
         public float rotationSpeed = 90f; // degrees per second
@@ -248,13 +228,11 @@ public class CombatSystem : MonoBehaviour
         }
     }
 
-    // Make sure to add the cleanup in OnDisable or when target selection finishes:
     private void OnDisable()
     {
         HideSelectionIndicator();
     }
 
-    // Also hide indicator when target is selected or selection is canceled:
     public void CancelTargetSelection()
     {
         isSelectingTarget = false;
@@ -325,10 +303,8 @@ public class CombatSystem : MonoBehaviour
         isSelectingTarget = true;
         isUsingAbility = forAbility;
 
-        // Highlight valid targets
         HighlightValidTargets(forAbility);
 
-        // Update the info layer
         if (GameInfoLayer.Instance != null)
         {
             if (forAbility)
@@ -492,10 +468,8 @@ public class CombatSystem : MonoBehaviour
         }
     }
 
-
-
     /// <summary>
-    /// Attack a target
+    /// Attack a target - updated to coordinate with animations
     /// </summary>
     private void AttackTarget(Unit target)
     {
@@ -504,23 +478,11 @@ public class CombatSystem : MonoBehaviour
         {
             Debug.Log($"{activeUnit.unitName} is attacking {target.unitName}");
 
-            // Perform attack
+            // Show attack line between unit and target
+            ShowAttackLine(activeUnit.transform.position, target.transform.position, false);
+
             activeUnit.Attack(target);
 
-            // Update battle info
-            if (GameInfoLayer.Instance != null)
-            {
-                GameInfoLayer.Instance.UpdateBattleInfo();
-
-                // Check if target died
-                if (!target.isAlive)
-                {
-                    GameInfoLayer.Instance.RegisterUnitDeath(target.unitName, false);
-                }
-            }
-
-            // Play attack effect if available
-            PlayCombatEffectAt(attackEffectPrefab, target.transform.position);
         }
         else
         {
@@ -531,7 +493,7 @@ public class CombatSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// Use ability on target
+    /// Use ability on target - updated to coordinate with animations
     /// </summary>
     private void UseAbilityOnTarget(Unit target)
     {
@@ -543,23 +505,23 @@ public class CombatSystem : MonoBehaviour
             if (!activeUnit.CanUseAbility())
             {
                 Debug.LogWarning($"{activeUnit.unitName} cannot use ability: cooldown={activeUnit.currentCooldown}");
+
+                // Update info layer
+                if (GameInfoLayer.Instance != null)
+                {
+                    GameInfoLayer.Instance.AddLogEntry($"{activeUnit.unitName} cannot use ability: cooldown={activeUnit.currentCooldown}");
+                }
                 return;
             }
+
+            // Show ability effect line/arc between unit and target(s)
+            ShowAttackLine(activeUnit.transform.position, target.transform.position, true);
 
             // Handle different abilities based on unit type
             if (activeUnit is Warrior)
             {
                 // Whirlwind hits all monsters
                 activeUnit.UseAbility(GameManager.Instance.monsterUnits.ToArray());
-
-                // Play effect on all monsters
-                foreach (MonsterUnit monster in GameManager.Instance.monsterUnits)
-                {
-                    if (monster.isAlive)
-                    {
-                        PlayCombatEffectAt(abilityEffectPrefab, monster.transform.position);
-                    }
-                }
             }
             else if (activeUnit is Mage)
             {
@@ -572,34 +534,20 @@ public class CombatSystem : MonoBehaviour
                 foreach (MonsterUnit adjacent in adjacentMonsters)
                 {
                     targets.Add(adjacent);
+
+                    // Show splash effect lines
+                    ShowAttackLine(target.transform.position, adjacent.transform.position, true, 0.5f);
                 }
 
-                // Use ability
                 activeUnit.UseAbility(targets.ToArray());
-
-                // Play effect on each hit target
-                foreach (Unit hitTarget in targets)
-                {
-                    PlayCombatEffectAt(abilityEffectPrefab, hitTarget.transform.position);
-                }
             }
             else
             {
                 // Single target abilities (Knight, Archer, Rogue)
                 activeUnit.UseAbility(new Unit[] { target });
 
-                // Play effect on targeted monster
-                PlayCombatEffectAt(abilityEffectPrefab, target.transform.position);
             }
 
-            // Log cooldown after using ability
-            Debug.Log($"{activeUnit.unitName} ability used, cooldown set to {activeUnit.currentCooldown}");
-
-            // Update battle info
-            if (GameInfoLayer.Instance != null)
-            {
-                GameInfoLayer.Instance.UpdateBattleInfo();
-            }
         }
         else
         {
@@ -621,7 +569,7 @@ public class CombatSystem : MonoBehaviour
         MonsterUnit[] allMonsters = FindObjectsByType<MonsterUnit>(FindObjectsSortMode.None);
 
         // Find monsters that are nearby
-        float adjacencyDistance = 0.4f; // Adjust based on your monster spacing
+        float adjacencyDistance = 0.4f;
 
         foreach (MonsterUnit monster in allMonsters)
         {
@@ -637,6 +585,63 @@ public class CombatSystem : MonoBehaviour
         }
 
         return adjacentMonsters;
+    }
+
+    /// <summary>
+    /// Show a line between attacker and target
+    /// </summary>
+    public void ShowAttackLine(Vector3 from, Vector3 to, bool isAbility, float duration = 0.7f)
+    {
+        GameObject lineObj = new GameObject("AttackLine");
+        LineRenderer line = lineObj.AddComponent<LineRenderer>();
+
+        // line config
+        line.startWidth = isAbility ? 0.05f : 0.03f;
+        line.endWidth = 0.01f;
+        line.positionCount = 2;
+
+        // Elevate line slightly to ensure visibility
+        Vector3 fromPos = from + Vector3.up * 0.05f;
+        Vector3 toPos = to + Vector3.up * 0.05f;
+
+        line.SetPosition(0, fromPos);
+        line.SetPosition(1, toPos);
+
+        Color lineColor = isAbility ? abilityTargetColor : Color.red;
+        line.startColor = lineColor;
+        line.endColor = lineColor;
+
+        line.material = new Material(Shader.Find("Sprites/Default"));
+
+        StartCoroutine(AnimateAttackLine(line, duration));
+    }
+
+    // Animate attack line to fade out
+    private IEnumerator AnimateAttackLine(LineRenderer line, float duration)
+    {
+        float elapsedTime = 0f;
+
+        while (elapsedTime < duration && line != null)
+        {
+            float t = elapsedTime / duration;
+
+            // Fade transparency
+            Color startColor = line.startColor;
+            Color endColor = line.endColor;
+
+            startColor.a = 1f - t;
+            endColor.a = 1f - t;
+
+            line.startColor = startColor;
+            line.endColor = endColor;
+
+            elapsedTime += Time.deltaTime;
+            yield return null;
+        }
+
+        // Destroy the line object when done
+        if (line != null)
+            Destroy(line.gameObject);
     }
 
     /// <summary>

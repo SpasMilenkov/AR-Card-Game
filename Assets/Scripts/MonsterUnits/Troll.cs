@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class Troll : MonsterUnit
 {
@@ -16,6 +17,9 @@ public class Troll : MonsterUnit
         attackDamage = 25; // High damage
         unitType = UnitType.Tank;
         aggressiveness = 0.3f; // Prefers tanks and melee units
+
+        // Set animation timing properties
+        attackAnimationDelay = 0.7f; // Trolls have slower, heavier attacks
     }
 
     // Regenerate HP at the start of turn
@@ -27,41 +31,89 @@ public class Troll : MonsterUnit
         // Regenerate HP
         if (isAlive)
         {
-            // Play regeneration animation/effect if available
-            if (animator != null && !canAttackThisTurn)
+            StartCoroutine(RegenerateWithAnimation());
+        }
+    }
+
+    // Add animation timing to regeneration
+    private IEnumerator RegenerateWithAnimation()
+    {
+        // Play regeneration animation/effect if available
+        if (animator != null && !canAttackThisTurn)
+        {
+            // If you have a specific regeneration animation, use it
+            // Otherwise, you could use a generic "Idle" animation
+            animator.SetTrigger("Idle");
+        }
+
+        // Visual indicator for regeneration
+        GameObject regenEffect = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        regenEffect.transform.position = transform.position;
+        regenEffect.transform.localScale = Vector3.one * 0.1f;
+
+        // Set material for healing effect
+        Renderer renderer = regenEffect.GetComponent<Renderer>();
+        renderer.material.color = Color.green;
+
+        // Remove collider
+        Destroy(regenEffect.GetComponent<Collider>());
+
+        // Wait a moment for visual effect
+        yield return new WaitForSeconds(0.5f);
+
+        // Apply regeneration
+        int regenAmount = Mathf.RoundToInt(regenerationAmount);
+        currentHealth = Mathf.Min(currentHealth + regenAmount, maxHealth);
+        Debug.Log(unitName + " regenerates " + regenAmount + " HP!");
+
+        // Update info layer
+        if (GameInfoLayer.Instance != null)
+        {
+            GameInfoLayer.Instance.AddLogEntry($"{unitName} regenerates {regenAmount} HP");
+            if (!canAttackThisTurn)
             {
-                // If you have a specific regeneration animation, use it
-                // Otherwise, you could use a generic "Idle" animation
+                GameInfoLayer.Instance.AddLogEntry($"{unitName} is resting this turn");
+            }
+        }
+
+        // Clean up the visual effect
+        Destroy(regenEffect, 0.5f);
+    }
+
+    // Override attack method with proper timing
+    protected override IEnumerator PlayMonsterAttackAnimation(Unit target)
+    {
+        if (!canAttackThisTurn)
+        {
+            // Can't attack this turn - just play an idle animation
+            if (animator != null)
+            {
                 animator.SetTrigger("Idle");
             }
 
-            int regenAmount = Mathf.RoundToInt(regenerationAmount);
-            currentHealth = Mathf.Min(currentHealth + regenAmount, maxHealth);
-            Debug.Log(unitName + " regenerates " + regenAmount + " HP!");
+            Debug.Log(unitName + " is recovering and cannot attack this turn.");
 
             // Update info layer
             if (GameInfoLayer.Instance != null)
             {
-                GameInfoLayer.Instance.AddLogEntry($"{unitName} regenerates {regenAmount} HP");
-                if (!canAttackThisTurn)
-                {
-                    GameInfoLayer.Instance.AddLogEntry($"{unitName} is resting this turn");
-                }
+                GameInfoLayer.Instance.AddLogEntry($"{unitName} is recovering and cannot attack this turn");
             }
+
+            yield break;
         }
-    }
 
-    // Changed to return int
-    public override int Attack(Unit target)
-    {
-        if (canAttackThisTurn && target != null && target.isAlive)
+        // Play attack animation
+        if (animator != null)
         {
-            // Play attack animation only when able to attack
-            if (animator != null)
-            {
-                animator.SetTrigger("Attack");
-            }
+            animator.SetTrigger("Attack");
+        }
 
+        // Wait for animation to reach the "hit" point
+        yield return new WaitForSeconds(attackAnimationDelay);
+
+        // Now apply damage if target is still valid
+        if (target != null && target.isAlive)
+        {
             // Apply damage
             target.TakeDamage(attackDamage);
             Debug.Log($"{unitName} smashes {target.unitName} for {attackDamage} damage!");
@@ -71,12 +123,19 @@ public class Troll : MonsterUnit
             {
                 GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "smashes", attackDamage);
             }
+        }
+    }
+
+    // Override to return expected attack damage
+    public override int PerformAttack(Unit target)
+    {
+        if (canAttackThisTurn)
+        {
             return attackDamage;
         }
         else
         {
-            Debug.Log(unitName + " is recovering and cannot attack this turn.");
-            return 0;
+            return 0; // No damage when resting
         }
     }
 
@@ -106,7 +165,4 @@ public class Troll : MonsterUnit
 
         return null;
     }
-
-    // Troll has no ability, so we don't need to override UseAbility
-    // It will never be called since CanUseAbility() isn't implemented
 }

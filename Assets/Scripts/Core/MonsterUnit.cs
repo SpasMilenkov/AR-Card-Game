@@ -34,28 +34,68 @@ public class MonsterUnit : Unit
     }
 
     /// <summary>
-    /// Attack a target unit and update the info layer
+    /// Attack a target unit with proper animation timing
+    /// Return type changed to void to match Unit.Attack
     /// </summary>
-    public virtual int Attack(Unit target)
+    public override void Attack(Unit target)
     {
         if (target != null && target.isAlive)
         {
-            // Play attack animation
-            if (animator != null)
+            // Play monster attack sound
+            if (AudioManager.Instance != null)
             {
-                animator.SetTrigger("Attack");
+                AudioManager.Instance.PlayMonsterAttackSound();
             }
 
+            // Start attack coroutine to handle animation timing
+            StartCoroutine(PlayMonsterAttackAnimation(target));
+        }
+    }
+
+    /// <summary>
+    /// Perform the actual monster attack and return damage for tracking
+    /// </summary>
+    public virtual int PerformAttack(Unit target)
+    {
+        if (target != null && target.isAlive)
+        {
             int damage = attackDamage;
             target.TakeDamage(damage);
 
             // Debug message
             Debug.Log($"{unitName} attacks {target.unitName} for {damage} damage!");
 
+            // Update info layer
+            if (GameInfoLayer.Instance != null)
+            {
+                GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "attacks", damage);
+            }
+
             return damage;
         }
 
         return 0;
+    }
+
+    /// <summary>
+    /// Coroutine to handle attack animation timing
+    /// </summary>
+    protected virtual IEnumerator PlayMonsterAttackAnimation(Unit target)
+    {
+        // Play attack animation
+        if (animator != null)
+        {
+            animator.SetTrigger("Attack");
+        }
+
+        // Wait for animation to reach the "hit" point
+        yield return new WaitForSeconds(attackAnimationDelay);
+
+        // Now apply damage if target is still valid
+        if (target != null && target.isAlive)
+        {
+            PerformAttack(target);
+        }
     }
 
     // Override the Die method to add visual feedback for monster deaths
@@ -69,9 +109,15 @@ public class MonsterUnit : Unit
             animator.SetTrigger("Die");
         }
 
+        // Play monster death sound
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlayMonsterAttackSound(); // Reuse the monster sound for death
+        }
+
         Debug.Log(unitName + " has been defeated!");
 
-        // Play death animation
+        // Play death animation with timing
         StartCoroutine(PlayDeathAnimation());
 
         // Update game state check

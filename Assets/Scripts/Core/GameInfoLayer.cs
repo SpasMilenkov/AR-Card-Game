@@ -5,8 +5,8 @@ using TMPro;
 using System.Text;
 
 /// <summary>
-/// GameInfoLayer provides real-time feedback to players about game state, actions, and events
-/// It acts as a HUD element that can be displayed on screen or in worldspace
+/// GameInfoLayer provides themed real-time feedback to players about game state, actions, and events
+/// Now uses StyleManager for consistent styling
 /// </summary>
 public class GameInfoLayer : MonoBehaviour
 {
@@ -24,33 +24,35 @@ public class GameInfoLayer : MonoBehaviour
         }
 
         Instance = this;
+
+        // Find or create StyleManager
+        styleManager = FindObjectOfType<StyleManager>();
+        if (styleManager == null)
+        {
+            GameObject styleObj = new GameObject("StyleManager");
+            styleManager = styleObj.AddComponent<StyleManager>();
+        }
     }
     #endregion
 
     [Header("UI References")]
     public RectTransform gameStatePanel;
     public TextMeshProUGUI gameStateText;
-
     public RectTransform spawnInfoPanel;
     public TextMeshProUGUI spawnInfoText;
-
     public RectTransform battleInfoPanel;
     public TextMeshProUGUI battleInfoText;
-
     public RectTransform logPanel;
     public TextMeshProUGUI logText;
 
     [Header("UI Settings")]
     public int maxLogEntries = 20;
     public bool showTimestamps = true;
-    public bool useColoredPanels = true;
+    public bool useColoredText = true;
     public bool debugMode = true;
 
-    [Header("Panel Colors")]
-    public Color gameStatePanelColor = new Color(0.2f, 0.2f, 0.3f, 0.8f);
-    public Color spawnInfoPanelColor = new Color(0.2f, 0.3f, 0.2f, 0.8f);
-    public Color battleInfoPanelColor = new Color(0.3f, 0.2f, 0.2f, 0.8f);
-    public Color logPanelColor = new Color(0.25f, 0.25f, 0.25f, 0.8f);
+    // Reference to the style manager
+    private StyleManager styleManager;
 
     // Private fields for tracking game info
     private List<string> logEntries = new List<string>();
@@ -68,46 +70,90 @@ public class GameInfoLayer : MonoBehaviour
 
     private void Start()
     {
-        // Apply panel colors if enabled
-        if (useColoredPanels)
-        {
-            ApplyPanelColors();
-        }
+        // Apply styles to panels
+        ApplyStylesToAllPanels();
 
         // Initialize the UI content
         ClearAllInfo();
         AddLogEntry("Welcome to AR Card Battle! Place your cards to begin.");
+
+        // Animate panel entrances
+        if (styleManager != null && styleManager.useAnimatedEffects)
+        {
+            StartCoroutine(StagedPanelEntrance());
+        }
     }
 
-    /// <summary>
-    /// Applies colors to all panels for better distinction
-    /// </summary>
-    private void ApplyPanelColors()
+    private System.Collections.IEnumerator StagedPanelEntrance()
     {
-        ApplyColorToPanel(gameStatePanel, gameStatePanelColor);
-        ApplyColorToPanel(spawnInfoPanel, spawnInfoPanelColor);
-        ApplyColorToPanel(battleInfoPanel, battleInfoPanelColor);
-        ApplyColorToPanel(logPanel, logPanelColor);
+        // Ensure all panels start invisible
+        SetPanelAlpha(gameStatePanel, 0);
+        SetPanelAlpha(spawnInfoPanel, 0);
+        SetPanelAlpha(battleInfoPanel, 0);
+        SetPanelAlpha(logPanel, 0);
+
+        // Fade in panels one by one
+        yield return StartCoroutine(FadeInPanel(gameStatePanel, 0.5f));
+        yield return new WaitForSeconds(0.1f);
+
+        yield return StartCoroutine(FadeInPanel(spawnInfoPanel, 0.5f));
+        yield return new WaitForSeconds(0.1f);
+
+        yield return StartCoroutine(FadeInPanel(battleInfoPanel, 0.5f));
+        yield return new WaitForSeconds(0.1f);
+
+        yield return StartCoroutine(FadeInPanel(logPanel, 0.5f));
     }
 
-    /// <summary>
-    /// Applies a color to a panel
-    /// </summary>
-    private void ApplyColorToPanel(RectTransform panel, Color color)
+    private void SetPanelAlpha(RectTransform panel, float alpha)
     {
         if (panel == null) return;
 
-        Image image = panel.GetComponent<Image>();
-        if (image != null)
+        CanvasGroup canvasGroup = panel.GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+            canvasGroup = panel.gameObject.AddComponent<CanvasGroup>();
+
+        canvasGroup.alpha = alpha;
+    }
+
+    private System.Collections.IEnumerator FadeInPanel(RectTransform panel, float duration)
+    {
+        if (panel == null) yield break;
+
+        CanvasGroup canvasGroup = panel.GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+            canvasGroup = panel.gameObject.AddComponent<CanvasGroup>();
+
+        float elapsed = 0;
+
+        while (elapsed < duration)
         {
-            image.color = color;
+            canvasGroup.alpha = Mathf.Lerp(0, 1, elapsed / duration);
+            elapsed += Time.deltaTime;
+            yield return null;
         }
-        else
-        {
-            // If panel doesn't have an image component, add one
-            image = panel.gameObject.AddComponent<Image>();
-            image.color = color;
-        }
+
+        canvasGroup.alpha = 1;
+    }
+
+    /// <summary>
+    /// Applies styling to all panels using StyleManager
+    /// </summary>
+    private void ApplyStylesToAllPanels()
+    {
+        if (styleManager == null) return;
+
+        // Style panels with headers
+        styleManager.StylePanel(gameStatePanel.gameObject, "Game State");
+        styleManager.StylePanel(spawnInfoPanel.gameObject, "Spawn Info");
+        styleManager.StylePanel(battleInfoPanel.gameObject, "Battle Info");
+        styleManager.StylePanel(logPanel.gameObject, "Event Log");
+
+        // Style text components
+        if (gameStateText != null) styleManager.StyleText(gameStateText, true);
+        if (spawnInfoText != null) styleManager.StyleText(spawnInfoText);
+        if (battleInfoText != null) styleManager.StyleText(battleInfoText);
+        if (logText != null) styleManager.StyleText(logText);
     }
 
     /// <summary>
@@ -126,15 +172,31 @@ public class GameInfoLayer : MonoBehaviour
                     break;
                 case GameManager.GameState.PlayerTurn:
                     stateText += "Player Turn - Select an action";
+
+                    // Highlight player turn with a subtle animation if enabled
+                    if (styleManager != null && styleManager.useAnimatedEffects)
+                        StartCoroutine(HighlightStateChange(gameStatePanel));
                     break;
                 case GameManager.GameState.MonsterTurn:
                     stateText += "Monster Turn";
+
+                    // Alert of monster turn with a different animation if enabled
+                    if (styleManager != null && styleManager.useAnimatedEffects)
+                        StartCoroutine(PulsePanelColor(gameStatePanel, new Color(0.8f, 0.5f, 0.3f)));
                     break;
                 case GameManager.GameState.Victory:
-                    stateText += "Victory!";
+                    stateText += "<color=#FFD700>Victory!</color>";
+
+                    // Celebrate with animation if enabled
+                    if (styleManager != null && styleManager.useAnimatedEffects)
+                        StartCoroutine(VictoryAnimation(gameStatePanel));
                     break;
                 case GameManager.GameState.Defeat:
-                    stateText += "Defeat!";
+                    stateText += "<color=#FF0000>Defeat!</color>";
+
+                    // Visualize defeat if enabled
+                    if (styleManager != null && styleManager.useAnimatedEffects)
+                        StartCoroutine(DefeatAnimation(gameStatePanel));
                     break;
                 default:
                     stateText += state.ToString();
@@ -143,6 +205,116 @@ public class GameInfoLayer : MonoBehaviour
 
             gameStateText.text = stateText;
         }
+    }
+
+    // Animation for state changes - keeping custom animations
+    private System.Collections.IEnumerator HighlightStateChange(RectTransform panel)
+    {
+        if (panel == null) yield break;
+
+        Image panelImage = panel.GetComponent<Image>();
+        if (panelImage == null) yield break;
+
+        Color originalColor = panelImage.color;
+        Color highlightColor = new Color(0.9f, 0.8f, 0.6f);
+
+        float duration = 0.5f;
+        float elapsed = 0;
+
+        while (elapsed < duration)
+        {
+            panelImage.color = Color.Lerp(highlightColor, originalColor, elapsed / duration);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        panelImage.color = originalColor;
+    }
+
+    private System.Collections.IEnumerator PulsePanelColor(RectTransform panel, Color pulseColor)
+    {
+        if (panel == null) yield break;
+
+        Image panelImage = panel.GetComponent<Image>();
+        if (panelImage == null) yield break;
+
+        Color originalColor = panelImage.color;
+
+        // Pulse twice
+        for (int i = 0; i < 2; i++)
+        {
+            // Fade to pulse color
+            float duration = 0.3f;
+            float elapsed = 0;
+
+            while (elapsed < duration)
+            {
+                panelImage.color = Color.Lerp(originalColor, pulseColor, elapsed / duration);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            // Fade back to original
+            elapsed = 0;
+            while (elapsed < duration)
+            {
+                panelImage.color = Color.Lerp(pulseColor, originalColor, elapsed / duration);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            yield return new WaitForSeconds(0.1f);
+        }
+
+        panelImage.color = originalColor;
+    }
+
+    private System.Collections.IEnumerator VictoryAnimation(RectTransform panel)
+    {
+        if (panel == null) yield break;
+
+        Image panelImage = panel.GetComponent<Image>();
+        if (panelImage == null) yield break;
+
+        Color originalColor = panelImage.color;
+        Color victoryColor = new Color(1f, 0.9f, 0.2f);
+
+        // Golden glow effect
+        float duration = 1.0f;
+        float elapsed = 0;
+
+        while (elapsed < duration)
+        {
+            panelImage.color = Color.Lerp(originalColor, victoryColor, Mathf.PingPong(elapsed * 2, 1));
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        panelImage.color = originalColor;
+    }
+
+    private System.Collections.IEnumerator DefeatAnimation(RectTransform panel)
+    {
+        if (panel == null) yield break;
+
+        Image panelImage = panel.GetComponent<Image>();
+        if (panelImage == null) yield break;
+
+        Color originalColor = panelImage.color;
+        Color defeatColor = new Color(0.8f, 0.2f, 0.2f);
+
+        // Red flash effect
+        float duration = 0.8f;
+        float elapsed = 0;
+
+        while (elapsed < duration)
+        {
+            panelImage.color = Color.Lerp(defeatColor, originalColor, elapsed / duration);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        panelImage.color = originalColor;
     }
 
     /// <summary>
@@ -154,7 +326,20 @@ public class GameInfoLayer : MonoBehaviour
         detectedCards[cardIndex] = cardName;
 
         UpdateSpawnInfo();
-        AddLogEntry($"Card detected: {cardName}");
+
+        // Use color-coded log entry
+        if (useColoredText && styleManager != null)
+        {
+            AddLogEntry($"Card detected: <color=#{ColorUtility.ToHtmlStringRGB(styleManager.highlightTextColor)}>{cardName}</color>");
+        }
+        else
+        {
+            AddLogEntry($"Card detected: {cardName}");
+        }
+
+        // Add visual feedback
+        if (styleManager != null && styleManager.useAnimatedEffects)
+            StartCoroutine(styleManager.FlashPanel(spawnInfoPanel, new Color(0.9f, 0.8f, 0.4f)));
     }
 
     /// <summary>
@@ -172,6 +357,28 @@ public class GameInfoLayer : MonoBehaviour
         }
 
         UpdateSpawnInfo();
+
+        // Use color-coded log entry
+        string teamType = isPlayer ? "Player" : "Monster";
+        Color textColor = isPlayer ?
+            (styleManager != null ? styleManager.positiveTextColor : Color.green) :
+            (styleManager != null ? styleManager.negativeTextColor : Color.red);
+
+        if (useColoredText)
+        {
+            AddLogEntry($"{teamType} unit spawned: <color=#{ColorUtility.ToHtmlStringRGB(textColor)}>{unitName}</color>");
+        }
+        else
+        {
+            AddLogEntry($"{teamType} unit spawned: {unitName}");
+        }
+
+        // Add spawn animation effect
+        if (styleManager != null && styleManager.useAnimatedEffects)
+        {
+            Color flashColor = isPlayer ? new Color(0.4f, 0.7f, 0.4f) : new Color(0.7f, 0.4f, 0.4f);
+            StartCoroutine(styleManager.FlashPanel(spawnInfoPanel, flashColor));
+        }
     }
 
     /// <summary>
@@ -179,7 +386,24 @@ public class GameInfoLayer : MonoBehaviour
     /// </summary>
     public void RegisterBattleAction(string sourceName, string targetName, string actionType, int amount)
     {
-        string actionText = $"{sourceName} {actionType} {targetName} for {amount} damage";
+        // Format the battle action text
+        string actionText;
+
+        if (useColoredText && styleManager != null)
+        {
+            string sourceColor = ColorUtility.ToHtmlStringRGB(styleManager.highlightTextColor);
+            string targetColor = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+            string damageColor = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+
+            actionText = $"<color=#{sourceColor}>{sourceName}</color> " +
+                        $"{actionType} <color=#{targetColor}>{targetName}</color> for " +
+                        $"<color=#{damageColor}>{amount} damage</color>";
+        }
+        else
+        {
+            actionText = $"{sourceName} {actionType} {targetName} for {amount} damage";
+        }
+
         AddLogEntry(actionText);
 
         // Update damage stats
@@ -193,6 +417,42 @@ public class GameInfoLayer : MonoBehaviour
         damageReceived[targetName] += amount;
 
         UpdateBattleInfo();
+
+        // Add battle action visual effects if enabled
+        if (styleManager != null && styleManager.useAnimatedEffects)
+        {
+            StartCoroutine(styleManager.FlashPanel(battleInfoPanel, new Color(0.8f, 0.6f, 0.3f)));
+            StartCoroutine(ScrollLogEffect());
+        }
+    }
+
+    // Visual effect for log entries
+    private System.Collections.IEnumerator ScrollLogEffect()
+    {
+        if (logText == null) yield break;
+
+        RectTransform logRect = logText.GetComponent<RectTransform>();
+        if (logRect == null) yield break;
+
+        // Get original position
+        Vector3 originalPosition = logRect.localPosition;
+
+        // Small jump effect
+        float jumpHeight = 10f;
+        float jumpDuration = 0.3f;
+        float elapsed = 0;
+
+        while (elapsed < jumpDuration)
+        {
+            float yOffset = jumpHeight * Mathf.Sin(elapsed / jumpDuration * Mathf.PI);
+            logRect.localPosition = originalPosition + new Vector3(0, yOffset, 0);
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        // Return to original position
+        logRect.localPosition = originalPosition;
     }
 
     /// <summary>
@@ -200,10 +460,55 @@ public class GameInfoLayer : MonoBehaviour
     /// </summary>
     public void RegisterUnitDeath(string unitName, bool isPlayer)
     {
-        string deathText = $"{unitName} was defeated!";
-        AddLogEntry(deathText);
+        string deathText;
 
+        if (useColoredText && styleManager != null)
+        {
+            string colorHex = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+            deathText = $"<color=#{colorHex}>{unitName} was defeated!</color>";
+        }
+        else
+        {
+            deathText = $"{unitName} was defeated!";
+        }
+
+        AddLogEntry(deathText);
         UpdateBattleInfo();
+
+        // Add defeat visual effect if enabled
+        if (styleManager != null && styleManager.useAnimatedEffects)
+            StartCoroutine(UnitDefeatEffect(battleInfoPanel));
+    }
+
+    // Visual feedback for unit defeat
+    private System.Collections.IEnumerator UnitDefeatEffect(RectTransform panel)
+    {
+        if (panel == null) yield break;
+
+        // Shake effect
+        Vector2 originalPosition = panel.anchoredPosition;
+        float shakeAmount = 5f;
+        float shakeDuration = 0.5f;
+        float elapsed = 0;
+
+        while (elapsed < shakeDuration)
+        {
+            float strength = (shakeDuration - elapsed) / shakeDuration; // Fade out shake
+
+            // Random shake offset
+            Vector2 offset = new Vector2(
+                Random.Range(-shakeAmount, shakeAmount) * strength,
+                Random.Range(-shakeAmount, shakeAmount) * strength
+            );
+
+            panel.anchoredPosition = originalPosition + offset;
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        // Reset to original position
+        panel.anchoredPosition = originalPosition;
     }
 
     /// <summary>
@@ -215,8 +520,16 @@ public class GameInfoLayer : MonoBehaviour
         {
             spawnInfo.Clear();
 
-            // Cards detected
-            spawnInfo.AppendLine("Cards Detected:");
+            // Cards detected section with styled text
+            if (useColoredText && styleManager != null)
+            {
+                spawnInfo.AppendLine($"<color=#{ColorUtility.ToHtmlStringRGB(styleManager.headerTextColor)}><b>Cards Detected:</b></color>");
+            }
+            else
+            {
+                spawnInfo.AppendLine("Cards Detected:");
+            }
+
             if (detectedCards.Count == 0)
             {
                 spawnInfo.AppendLine("  None");
@@ -225,12 +538,30 @@ public class GameInfoLayer : MonoBehaviour
             {
                 foreach (var card in detectedCards)
                 {
-                    spawnInfo.AppendLine($"  {card.Value}");
+                    if (useColoredText && styleManager != null)
+                    {
+                        spawnInfo.AppendLine($"  <color=#{ColorUtility.ToHtmlStringRGB(styleManager.highlightTextColor)}>{card.Value}</color>");
+                    }
+                    else
+                    {
+                        spawnInfo.AppendLine($"  {card.Value}");
+                    }
                 }
             }
 
-            // Player units
-            spawnInfo.AppendLine("\nPlayer Units:");
+            // Add decorative divider text
+            spawnInfo.AppendLine("\n----- ----- -----\n");
+
+            // Player units section
+            if (useColoredText && styleManager != null)
+            {
+                spawnInfo.AppendLine($"<color=#{ColorUtility.ToHtmlStringRGB(styleManager.headerTextColor)}><b>Player Units:</b></color>");
+            }
+            else
+            {
+                spawnInfo.AppendLine("Player Units:");
+            }
+
             if (playerUnits.Count == 0)
             {
                 spawnInfo.AppendLine("  None");
@@ -239,12 +570,30 @@ public class GameInfoLayer : MonoBehaviour
             {
                 foreach (var unit in playerUnits)
                 {
-                    spawnInfo.AppendLine($"  {unit}");
+                    if (useColoredText && styleManager != null)
+                    {
+                        spawnInfo.AppendLine($"  <color=#{ColorUtility.ToHtmlStringRGB(styleManager.positiveTextColor)}>{unit}</color>");
+                    }
+                    else
+                    {
+                        spawnInfo.AppendLine($"  {unit}");
+                    }
                 }
             }
 
-            // Monster units
-            spawnInfo.AppendLine("\nMonster Units:");
+            // Add decorative divider text
+            spawnInfo.AppendLine("\n----- ----- -----\n");
+
+            // Monster units section
+            if (useColoredText && styleManager != null)
+            {
+                spawnInfo.AppendLine($"<color=#{ColorUtility.ToHtmlStringRGB(styleManager.headerTextColor)}><b>Monster Units:</b></color>");
+            }
+            else
+            {
+                spawnInfo.AppendLine("Monster Units:");
+            }
+
             if (monsterUnits.Count == 0)
             {
                 spawnInfo.AppendLine("  None");
@@ -253,15 +602,31 @@ public class GameInfoLayer : MonoBehaviour
             {
                 foreach (var unit in monsterUnits)
                 {
-                    spawnInfo.AppendLine($"  {unit}");
+                    if (useColoredText && styleManager != null)
+                    {
+                        spawnInfo.AppendLine($"  <color=#{ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor)}>{unit}</color>");
+                    }
+                    else
+                    {
+                        spawnInfo.AppendLine($"  {unit}");
+                    }
                 }
             }
 
-            // Display remaining cards needed
+            // Display remaining cards needed with highlighted text
             int cardsNeeded = 3 - playerUnits.Count;
             if (cardsNeeded > 0)
             {
-                spawnInfo.AppendLine($"\nPlace {cardsNeeded} more card(s) to begin battle");
+                spawnInfo.AppendLine();
+
+                if (useColoredText && styleManager != null)
+                {
+                    spawnInfo.AppendLine($"<color=#{ColorUtility.ToHtmlStringRGB(styleManager.highlightTextColor)}><b>Place {cardsNeeded} more card(s) to begin battle</b></color>");
+                }
+                else
+                {
+                    spawnInfo.AppendLine($"Place {cardsNeeded} more card(s) to begin battle");
+                }
             }
 
             spawnInfoText.text = spawnInfo.ToString();
@@ -277,49 +642,190 @@ public class GameInfoLayer : MonoBehaviour
         {
             battleInfo.Clear();
 
-            // Current active unit
+            // Current active unit info
             if (GameManager.Instance.currentState == GameManager.GameState.PlayerTurn &&
                 GameManager.Instance.currentActiveUnit != null)
             {
                 PlayerUnit active = GameManager.Instance.currentActiveUnit;
-                battleInfo.AppendLine($"Active Unit: {active.unitName}");
-                battleInfo.AppendLine($"Health: {active.currentHealth}/{active.maxHealth}");
 
-                // Ability info
-                if (active.CanUseAbility())
+                if (useColoredText && styleManager != null)
                 {
-                    battleInfo.AppendLine("Ability: Ready");
+                    battleInfo.AppendLine($"<color=#{ColorUtility.ToHtmlStringRGB(styleManager.headerTextColor)}><b>Active Unit:</b></color> " +
+                                        $"<color=#{ColorUtility.ToHtmlStringRGB(styleManager.highlightTextColor)}>{active.unitName}</color>");
+
+                    // Health with color based on percentage
+                    float healthPercent = (float)active.currentHealth / active.maxHealth;
+                    string healthColorHex;
+
+                    if (healthPercent > 0.66f)
+                        healthColorHex = ColorUtility.ToHtmlStringRGB(styleManager.positiveTextColor);
+                    else if (healthPercent > 0.33f)
+                        healthColorHex = ColorUtility.ToHtmlStringRGB(new Color(0.9f, 0.6f, 0.1f)); // Orange
+                    else
+                        healthColorHex = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+
+                    battleInfo.AppendLine($"Health: <color=#{healthColorHex}>{active.currentHealth}/{active.maxHealth}</color>");
+
+                    // Ability status
+                    string abilityColorHex = active.CanUseAbility() ?
+                                           ColorUtility.ToHtmlStringRGB(styleManager.positiveTextColor) :
+                                           ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+
+                    string abilityStatus = active.CanUseAbility() ?
+                                         "Ready" :
+                                         $"Cooldown ({active.currentCooldown})";
+
+                    battleInfo.AppendLine($"Ability: <color=#{abilityColorHex}>{abilityStatus}</color>");
                 }
                 else
                 {
-                    battleInfo.AppendLine($"Ability: Cooldown ({active.currentCooldown})");
+                    battleInfo.AppendLine($"Active Unit: {active.unitName}");
+                    battleInfo.AppendLine($"Health: {active.currentHealth}/{active.maxHealth}");
+                    battleInfo.AppendLine($"Ability: {(active.CanUseAbility() ? "Ready" : $"Cooldown ({active.currentCooldown})")}");
                 }
             }
 
-            // Unit status
-            battleInfo.AppendLine("\nUnit Status:");
+            // Add decorative divider text
+            battleInfo.AppendLine("\n----- ----- -----\n");
+
+            // Unit status section
+            if (useColoredText && styleManager != null)
+            {
+                battleInfo.AppendLine($"<color=#{ColorUtility.ToHtmlStringRGB(styleManager.headerTextColor)}><b>Unit Status:</b></color>");
+            }
+            else
+            {
+                battleInfo.AppendLine("Unit Status:");
+            }
 
             // Player units status
             foreach (var unit in GameManager.Instance.playerUnits)
             {
                 if (unit != null)
                 {
-                    string statusText = unit.isAlive ?
-                        $"HP: {unit.currentHealth}/{unit.maxHealth}" : "DEFEATED";
+                    if (useColoredText && styleManager != null)
+                    {
+                        string unitColorHex = ColorUtility.ToHtmlStringRGB(styleManager.highlightTextColor);
+                        string statusColorHex;
+                        string statusText;
 
-                    battleInfo.AppendLine($"  {unit.unitName}: {statusText}");
+                        if (unit.isAlive)
+                        {
+                            float healthPercent = (float)unit.currentHealth / unit.maxHealth;
+
+                            if (healthPercent > 0.66f)
+                                statusColorHex = ColorUtility.ToHtmlStringRGB(styleManager.positiveTextColor);
+                            else if (healthPercent > 0.33f)
+                                statusColorHex = ColorUtility.ToHtmlStringRGB(new Color(0.9f, 0.6f, 0.1f));
+                            else
+                                statusColorHex = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+
+                            statusText = $"HP: {unit.currentHealth}/{unit.maxHealth}";
+                        }
+                        else
+                        {
+                            statusColorHex = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+                            statusText = "DEFEATED";
+                        }
+
+                        battleInfo.AppendLine($"  <color=#{unitColorHex}>{unit.unitName}</color>: <color=#{statusColorHex}>{statusText}</color>");
+                    }
+                    else
+                    {
+                        string statusText = unit.isAlive ?
+                                          $"HP: {unit.currentHealth}/{unit.maxHealth}" : "DEFEATED";
+
+                        battleInfo.AppendLine($"  {unit.unitName}: {statusText}");
+                    }
                 }
             }
+
+            // Add mini divider
+            battleInfo.AppendLine("\n- - - - -\n");
 
             // Monster units status
             foreach (var unit in GameManager.Instance.monsterUnits)
             {
                 if (unit != null)
                 {
-                    string statusText = unit.isAlive ?
-                        $"HP: {unit.currentHealth}/{unit.maxHealth}" : "DEFEATED";
+                    if (useColoredText && styleManager != null)
+                    {
+                        string unitColorHex = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+                        string statusColorHex;
+                        string statusText;
 
-                    battleInfo.AppendLine($"  {unit.unitName}: {statusText}");
+                        if (unit.isAlive)
+                        {
+                            float healthPercent = (float)unit.currentHealth / unit.maxHealth;
+
+                            if (healthPercent > 0.66f)
+                                statusColorHex = ColorUtility.ToHtmlStringRGB(styleManager.positiveTextColor);
+                            else if (healthPercent > 0.33f)
+                                statusColorHex = ColorUtility.ToHtmlStringRGB(new Color(0.9f, 0.6f, 0.1f));
+                            else
+                                statusColorHex = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+
+                            statusText = $"HP: {unit.currentHealth}/{unit.maxHealth}";
+                        }
+                        else
+                        {
+                            statusColorHex = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+                            statusText = "DEFEATED";
+                        }
+
+                        battleInfo.AppendLine($"  <color=#{unitColorHex}>{unit.unitName}</color>: <color=#{statusColorHex}>{statusText}</color>");
+                    }
+                    else
+                    {
+                        string statusText = unit.isAlive ?
+                                          $"HP: {unit.currentHealth}/{unit.maxHealth}" : "DEFEATED";
+
+                        battleInfo.AppendLine($"  {unit.unitName}: {statusText}");
+                    }
+                }
+            }
+
+            // Display battle stats if any
+            if (damageDealt.Count > 0 || damageReceived.Count > 0)
+            {
+                battleInfo.AppendLine("\n----- ----- -----\n");
+
+                if (useColoredText && styleManager != null)
+                {
+                    battleInfo.AppendLine($"<color=#{ColorUtility.ToHtmlStringRGB(styleManager.headerTextColor)}><b>Battle Stats:</b></color>");
+                }
+                else
+                {
+                    battleInfo.AppendLine("Battle Stats:");
+                }
+
+                // Display top damage dealer if any
+                if (damageDealt.Count > 0)
+                {
+                    // Find top damage dealer
+                    string topDealer = "";
+                    int topDamage = 0;
+
+                    foreach (var entry in damageDealt)
+                    {
+                        if (entry.Value > topDamage)
+                        {
+                            topDealer = entry.Key;
+                            topDamage = entry.Value;
+                        }
+                    }
+
+                    if (useColoredText && styleManager != null)
+                    {
+                        string highlightHex = ColorUtility.ToHtmlStringRGB(styleManager.highlightTextColor);
+                        string damageHex = ColorUtility.ToHtmlStringRGB(styleManager.negativeTextColor);
+
+                        battleInfo.AppendLine($"  Top Damage: <color=#{highlightHex}>{topDealer}</color> (<color=#{damageHex}>{topDamage}</color>)");
+                    }
+                    else
+                    {
+                        battleInfo.AppendLine($"  Top Damage: {topDealer} ({topDamage})");
+                    }
                 }
             }
 
@@ -333,8 +839,27 @@ public class GameInfoLayer : MonoBehaviour
     public void AddLogEntry(string message)
     {
         // Format with timestamp if enabled
-        string entry = showTimestamps ?
-            $"[{System.DateTime.Now.ToString("HH:mm:ss")}] {message}" : message;
+        string entry;
+
+        if (showTimestamps)
+        {
+            string timeString = System.DateTime.Now.ToString("HH:mm:ss");
+
+            if (useColoredText)
+            {
+                // Gray-brown timestamp color
+                string timeColor = ColorUtility.ToHtmlStringRGB(new Color(0.6f, 0.5f, 0.4f));
+                entry = $"<color=#{timeColor}>[{timeString}]</color> {message}";
+            }
+            else
+            {
+                entry = $"[{timeString}] {message}";
+            }
+        }
+        else
+        {
+            entry = message;
+        }
 
         // Add to log entries
         logEntries.Add(entry);
@@ -357,7 +882,18 @@ public class GameInfoLayer : MonoBehaviour
         if (logText != null)
         {
             StringBuilder log = new StringBuilder();
-            log.AppendLine("Event Log:");
+
+            if (useColoredText && styleManager != null)
+            {
+                string headerHex = ColorUtility.ToHtmlStringRGB(styleManager.headerTextColor);
+                log.AppendLine($"<color=#{headerHex}><b>Event Log:</b></color>");
+            }
+            else
+            {
+                log.AppendLine("Event Log:");
+            }
+
+            log.AppendLine();
 
             foreach (string entry in logEntries)
             {
@@ -381,16 +917,74 @@ public class GameInfoLayer : MonoBehaviour
         damageReceived.Clear();
 
         if (gameStateText != null)
-            gameStateText.text = "Current State: Setup - Place your cards";
+        {
+            if (useColoredText && styleManager != null)
+            {
+                string stateHex = ColorUtility.ToHtmlStringRGB(styleManager.headerTextColor);
+                gameStateText.text = $"Current State: <color=#{stateHex}>Setup - Place your cards</color>";
+            }
+            else
+            {
+                gameStateText.text = "Current State: Setup - Place your cards";
+            }
+        }
 
         if (spawnInfoText != null)
-            spawnInfoText.text = "No units spawned";
+        {
+            if (useColoredText && styleManager != null)
+            {
+                string promptHex = ColorUtility.ToHtmlStringRGB(styleManager.highlightTextColor);
+                spawnInfoText.text = $"<color=#{promptHex}>Place your cards to spawn units</color>";
+            }
+            else
+            {
+                spawnInfoText.text = "Place your cards to spawn units";
+            }
+        }
 
         if (battleInfoText != null)
-            battleInfoText.text = "Battle not started";
+        {
+            if (useColoredText && styleManager != null)
+            {
+                string infoHex = ColorUtility.ToHtmlStringRGB(styleManager.standardTextColor);
+                battleInfoText.text = $"<color=#{infoHex}>Battle not started</color>";
+            }
+            else
+            {
+                battleInfoText.text = "Battle not started";
+            }
+        }
 
         if (logText != null)
-            logText.text = "";
+        {
+            UpdateLogText();
+        }
+
+        // Highlight all panels when reset if effects are enabled
+        if (styleManager != null && styleManager.useAnimatedEffects)
+        {
+            StartCoroutine(ResetHighlightAllPanels());
+        }
+    }
+
+    private System.Collections.IEnumerator ResetHighlightAllPanels()
+    {
+        // Highlight each panel one by one
+        if (styleManager != null)
+        {
+            Color highlightColor = new Color(0.9f, 0.8f, 0.6f);
+
+            yield return StartCoroutine(styleManager.FlashPanel(gameStatePanel, highlightColor));
+            yield return new WaitForSeconds(0.1f);
+
+            yield return StartCoroutine(styleManager.FlashPanel(spawnInfoPanel, highlightColor));
+            yield return new WaitForSeconds(0.1f);
+
+            yield return StartCoroutine(styleManager.FlashPanel(battleInfoPanel, highlightColor));
+            yield return new WaitForSeconds(0.1f);
+
+            yield return StartCoroutine(styleManager.FlashPanel(logPanel, highlightColor));
+        }
     }
 
     /// <summary>

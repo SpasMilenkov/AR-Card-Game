@@ -1,6 +1,6 @@
+using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
 
 /// <summary>
 /// Base class for all units in the game (players and monsters)
@@ -13,6 +13,12 @@ public class Unit : MonoBehaviour
     public int currentHealth;
     public int attackDamage;
     public bool isAlive = true;
+
+    // Animation timing properties
+    [Header("Animation Timing")]
+    public float attackAnimationDelay = 0.5f; // Time to wait for attack animation to "hit"
+    public float abilityAnimationDelay = 0.7f; // Time to wait for ability animation to take effect
+    public float deathAnimationDuration = 1.0f; // How long death animation plays
 
     // Unit type for targeting purposes
     public enum UnitType
@@ -27,11 +33,16 @@ public class Unit : MonoBehaviour
     // Reference to the animator component
     protected Animator animator;
 
+    // For animation hit coordination
+    protected Unit _currentTarget;
+    protected int _pendingDamage;
+
     void Awake()
     {
         // Get the animator component
         animator = GetComponent<Animator>();
     }
+
     protected virtual void Start()
     {
         if (animator != null)
@@ -45,34 +56,78 @@ public class Unit : MonoBehaviour
                 Debug.Log($"[{unitName}] Using animator controller: {animator.runtimeAnimatorController.name}");
             }
         }
-        Debug.LogError($"[{unitName}] No animator component found!");
+        else
+        {
+            Debug.LogError($"[{unitName}] No animator component found!");
+        }
     }
 
     public UnitType unitType;
 
-    // Health bar reference
-
     /// <summary>
-    /// Deal damage to a target unit
+    /// Deal damage to a target unit - now uses coroutine for timing
     /// </summary>
     public virtual void Attack(Unit target)
     {
         if (target != null && target.isAlive)
         {
-            // Play attack animation
-            if (animator != null)
-            {
-                animator.SetTrigger("Attack");
-            }
+            Debug.Log(unitName + " starts attack animation against " + target.unitName);
+            StartCoroutine(PlayAttackAnimationWithTiming(target, attackDamage));
+        }
+    }
 
-            Debug.Log(unitName + " attacks " + target.unitName + " for " + attackDamage + " damage!");
-            target.TakeDamage(attackDamage);
+    /// <summary>
+    /// Coroutine to handle attack animation timing
+    /// </summary>
+    protected virtual IEnumerator PlayAttackAnimationWithTiming(Unit target, int damage)
+    {
+        // Store pending damage info
+        _currentTarget = target;
+        _pendingDamage = damage;
 
-            // Update game info layer
-            if (GameInfoLayer.Instance != null)
-            {
-                GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "attacks", attackDamage);
-            }
+        // Play attack animation
+        if (animator != null)
+        {
+            animator.SetTrigger("Attack");
+        }
+
+        // Wait for animation to reach the "hit" point
+        yield return new WaitForSeconds(attackAnimationDelay);
+
+        // Now apply damage if target is still valid
+        if (target != null && target.isAlive)
+        {
+            ApplyDamage(target, damage);
+        }
+
+        // Clear pending attack
+        _currentTarget = null;
+    }
+
+    /// <summary>
+    /// Can be called by animation events when hit frame is reached
+    /// </summary>
+    public void OnAnimationHitFrame()
+    {
+        if (_currentTarget != null && _currentTarget.isAlive)
+        {
+            ApplyDamage(_currentTarget, _pendingDamage);
+            _currentTarget = null; // Clear after applying
+        }
+    }
+
+    /// <summary>
+    /// Helper method to apply damage separately from playing animation
+    /// </summary>
+    protected virtual void ApplyDamage(Unit target, int damage)
+    {
+        Debug.Log(unitName + " deals " + damage + " damage to " + target.unitName);
+        target.TakeDamage(damage);
+
+        // Update game info layer
+        if (GameInfoLayer.Instance != null)
+        {
+            GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "attacks", damage);
         }
     }
 
@@ -88,6 +143,16 @@ public class Unit : MonoBehaviour
         if (animator != null)
         {
             animator.SetTrigger("TakeDamage");
+        }
+
+        // Play sound effect for taking damage
+        if (AudioManager.Instance != null && damage > 0)
+        {
+            // Use human growl for player units, monster growl for monster units
+            if (this is PlayerUnit)
+                AudioManager.Instance.PlayHumanSound();
+            else if (this is MonsterUnit)
+                AudioManager.Instance.PlayMonsterAttackSound();
         }
 
         // Log before damage is applied
@@ -130,7 +195,31 @@ public class Unit : MonoBehaviour
 
         Debug.Log(unitName + " has been defeated!");
 
-        // Visual death effect (optional)
+        // Start death effects with timing
+        StartCoroutine(PlayDeathEffects());
+
+        // Update game state check
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.CheckBattleStatus();
+        }
+    }
+
+    /// <summary>
+    /// Play death effects with appropriate timing
+    /// </summary>
+    protected virtual IEnumerator PlayDeathEffects()
+    {
+        // Play death sound based on unit type
+        if (AudioManager.Instance != null)
+        {
+            if (this is PlayerUnit)
+                AudioManager.Instance.PlayHumanSound();
+            else if (this is MonsterUnit)
+                AudioManager.Instance.PlayMonsterAttackSound();
+        }
+
+        // Visual death effect - fade out
         Renderer[] renderers = GetComponentsInChildren<Renderer>();
         foreach (Renderer r in renderers)
         {
@@ -142,11 +231,10 @@ public class Unit : MonoBehaviour
             }
         }
 
-        // Update game state check
-        if (GameManager.Instance != null)
-        {
-            GameManager.Instance.CheckBattleStatus();
-        }
+        // Wait for death animation to finish
+        yield return new WaitForSeconds(deathAnimationDuration);
+
+        // Further visual changes can be applied here after animation completes
     }
 
     /// <summary>
@@ -163,7 +251,6 @@ public class Unit : MonoBehaviour
         // Override in derived classes
         Debug.Log(unitName + " uses an ability!");
     }
-
 
     // New method for damage visual feedback
     protected virtual void ShowDamageEffect(int damageAmount)

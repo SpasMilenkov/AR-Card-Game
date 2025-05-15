@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class Warrior : PlayerUnit
 {
@@ -22,6 +23,12 @@ public class Warrior : PlayerUnit
     {
         if (CanUseAbility())
         {
+            // Play sound effect
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayGenericAbilitySound();
+            }
+
             // Play whirlwind animation
             if (animator != null)
             {
@@ -48,6 +55,22 @@ public class Warrior : PlayerUnit
 
             // Set cooldown
             currentCooldown = abilityCooldown;
+        }
+    }
+
+    // Override Attack to add sound effect
+    public override void Attack(Unit target)
+    {
+        if (target != null && target.isAlive)
+        {
+            // Play attack sound
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayWarriorAttackSound();
+            }
+
+            // Use the base implementation with proper timing
+            base.Attack(target);
         }
     }
 }

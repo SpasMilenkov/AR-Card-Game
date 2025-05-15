@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class Goblin : MonsterUnit
 {
@@ -16,70 +17,84 @@ public class Goblin : MonsterUnit
         attackDamage = 10; // Low damage
         unitType = UnitType.Melee;
         aggressiveness = 0.7f; // Prefers weaker targets
+
+        // Set animation timing properties
+        attackAnimationDelay = 0.4f; // Goblins attack quickly
     }
 
-    // Override to attack twice - changed to return int
-    public override int Attack(Unit target)
+    // Override the attack animation coroutine to handle double attack
+    protected override IEnumerator PlayMonsterAttackAnimation(Unit target)
     {
-        int totalDamage = 0;
+        // First attack animation
+        if (animator != null)
+        {
+            animator.SetTrigger("Attack");
+        }
 
-        // First attack
+        // Wait for first attack animation to reach hit point
+        yield return new WaitForSeconds(attackAnimationDelay);
+
+        // Apply first attack damage if target is still valid
+        int totalDamage = 0;
         if (target != null && target.isAlive)
         {
-            // Play attack animation
-            if (animator != null)
-            {
-                animator.SetTrigger("Attack");
-            }
-
-            target.TakeDamage(attackDamage);
-            totalDamage += attackDamage;
+            // First attack with full damage
+            int firstDamage = attackDamage;
+            target.TakeDamage(firstDamage);
+            totalDamage += firstDamage;
 
             // Update info layer for first attack
             if (GameInfoLayer.Instance != null)
             {
-                GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "attacks", attackDamage);
+                GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "attacks", firstDamage);
             }
         }
 
-        // Check if target is still alive and we can do second attack
+        // Check if target is still alive for second attack
         if (target != null && target.isAlive)
         {
-            // Wait a bit before second attack
-            StartCoroutine(SecondAttackWithDelay(target));
+            // Small delay between attacks
+            yield return new WaitForSeconds(0.3f);
 
-            // Second attack with reduced damage
-            int secondDamage = Mathf.RoundToInt(attackDamage * secondAttackDamageMultiplier);
-            totalDamage += secondDamage; // Add to total damage for return value
-        }
-
-        return totalDamage;
-    }
-
-    // Coroutine to add delay between attacks
-    private System.Collections.IEnumerator SecondAttackWithDelay(Unit target)
-    {
-        // Wait for first animation to mostly complete
-        yield return new WaitForSeconds(0.5f);
-
-        if (target != null && target.isAlive)
-        {
-            // Play attack animation again for second attack
+            // Second attack animation
             if (animator != null)
             {
                 animator.SetTrigger("Attack");
             }
 
-            int secondDamage = Mathf.RoundToInt(attackDamage * secondAttackDamageMultiplier);
-            Debug.Log(unitName + " attacks again for " + secondDamage + " damage!");
-            target.TakeDamage(secondDamage);
+            // Wait for second attack animation to reach hit point
+            yield return new WaitForSeconds(attackAnimationDelay);
 
-            // Update info layer for second attack
-            if (GameInfoLayer.Instance != null)
+            // Apply second attack with reduced damage
+            if (target != null && target.isAlive)
             {
-                GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "attacks again", secondDamage);
+                int secondDamage = Mathf.RoundToInt(attackDamage * secondAttackDamageMultiplier);
+                target.TakeDamage(secondDamage);
+                totalDamage += secondDamage;
+
+                Debug.Log(unitName + " attacks again for " + secondDamage + " damage!");
+
+                // Update info layer for second attack
+                if (GameInfoLayer.Instance != null)
+                {
+                    GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "attacks again", secondDamage);
+                }
             }
         }
+    }
+
+    // Override PerformAttack to return the expected total damage
+    public override int PerformAttack(Unit target)
+    {
+        if (target != null && target.isAlive)
+        {
+            // Calculate expected total damage (for planning)
+            int firstDamage = attackDamage;
+            int secondDamage = Mathf.RoundToInt(attackDamage * secondAttackDamageMultiplier);
+            return firstDamage + secondDamage;
+        }
+
+        return 0;
     }
 
     // Goblin selects the weakest (lowest HP) target

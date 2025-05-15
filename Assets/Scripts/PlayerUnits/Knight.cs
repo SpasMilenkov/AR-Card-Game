@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class Knight : PlayerUnit
 {
@@ -17,32 +18,37 @@ public class Knight : PlayerUnit
         attackDamage = 15; // Lower damage
         unitType = UnitType.Tank;
         abilityCooldown = 3; // Cooldown in turns
+
+        // Set animation timing properties
+        attackAnimationDelay = 0.5f; // Standard attack time
+        abilityAnimationDelay = 0.6f; // Shield raise is relatively quick
     }
 
     // Shield Block ability: reduces damage taken for 1 turn
-    public override void UseAbility(Unit[] targets)
+    protected override void ApplyAbilityEffects(Unit[] targets)
     {
-        if (CanUseAbility())
+        // Shield block affects the knight itself, not targets
+        shieldRemainingTurns = shieldDuration;
+
+        // Play ability sound
+        if (AudioManager.Instance != null)
         {
-            // Play shield block animation
-            if (animator != null)
-            {
-                animator.SetTrigger("Ability");
-            }
-
-            shieldRemainingTurns = shieldDuration;
-
-            // Visual feedback
-            Debug.Log(unitName + " uses Shield Block! Damage reduced for " + shieldDuration + " turn.");
-
-            // Activate visual effect if available
-            Transform shield = transform.Find("ShieldEffect");
-            if (shield != null)
-                shield.gameObject.SetActive(true);
-
-            // Set cooldown
-            currentCooldown = abilityCooldown;
+            AudioManager.Instance.PlayGenericAbilitySound();
         }
+
+        // Visual feedback
+        Debug.Log(unitName + " uses Shield Block! Damage reduced for " + shieldDuration + " turn.");
+
+        // Update game info layer
+        if (GameInfoLayer.Instance != null)
+        {
+            GameInfoLayer.Instance.AddLogEntry($"{unitName} raises shield! Damage reduced for {shieldDuration} turn.");
+        }
+
+        // Activate visual effect if available
+        Transform shield = transform.Find("ShieldEffect");
+        if (shield != null)
+            shield.gameObject.SetActive(true);
     }
 
     public override void TakeDamage(int damage)
@@ -54,10 +60,22 @@ public class Knight : PlayerUnit
             if (shieldRemainingTurns > 0)
             {
                 animator.SetTrigger("Ability");
+
+                // Play shield block sound
+                if (AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlaySFX(AudioManager.Instance.swordHitMetal);
+                }
             }
             else
             {
                 animator.SetTrigger("TakeDamage");
+
+                // Play generic hit sound (if available in AudioManager)
+                if (AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlaySFX(AudioManager.Instance.swordHitArmor);
+                }
             }
         }
 
@@ -65,9 +83,18 @@ public class Knight : PlayerUnit
         if (shieldRemainingTurns > 0)
         {
             int reducedDamage = Mathf.RoundToInt(damage * (1 - damageReductionAmount));
+            int damagePrevented = damage - reducedDamage;
+
+            // Update game info layer about damage reduction
+            if (GameInfoLayer.Instance != null)
+            {
+                GameInfoLayer.Instance.AddLogEntry($"{unitName}'s shield absorbs {damagePrevented} damage!");
+            }
+
+            // Apply reduced damage using base method
             base.TakeDamage(reducedDamage);
             Debug.Log(unitName + "'s shield absorbs " +
-                      (damage - reducedDamage) + " damage!");
+                      damagePrevented + " damage!");
         }
         else
         {
@@ -87,6 +114,12 @@ public class Knight : PlayerUnit
             Transform shield = transform.Find("ShieldEffect");
             if (shield != null)
                 shield.gameObject.SetActive(true);
+
+            // Update game info layer
+            if (GameInfoLayer.Instance != null)
+            {
+                GameInfoLayer.Instance.AddLogEntry($"{unitName}'s shield is active for {shieldRemainingTurns} more turns");
+            }
         }
     }
 
@@ -99,11 +132,6 @@ public class Knight : PlayerUnit
 
             if (shieldRemainingTurns <= 0)
             {
-                // Play shield fade animation if available
-                if (animator != null)
-                {
-                    animator.SetTrigger("ShieldDown");
-                }
 
                 // Deactivate shield visual
                 Transform shield = transform.Find("ShieldEffect");
@@ -111,7 +139,29 @@ public class Knight : PlayerUnit
                     shield.gameObject.SetActive(false);
 
                 Debug.Log(unitName + "'s shield fades away.");
+
+                // Update game info layer
+                if (GameInfoLayer.Instance != null)
+                {
+                    GameInfoLayer.Instance.AddLogEntry($"{unitName}'s shield fades away");
+                }
             }
+        }
+    }
+
+    // Override Attack to add sound effect
+    public override void Attack(Unit target)
+    {
+        if (target != null && target.isAlive)
+        {
+            // Play attack sound
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayWarriorAttackSound();
+            }
+
+            // Use the base implementation 
+            base.Attack(target);
         }
     }
 }

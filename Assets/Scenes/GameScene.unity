@@ -2245,6 +2245,9 @@ MonoBehaviour:
   currentHealth: 0
   attackDamage: 0
   isAlive: 1
+  attackAnimationDelay: 0.5
+  abilityAnimationDelay: 0.7
+  deathAnimationDuration: 1
   unitType: 0
   abilityCooldown: 0
   currentCooldown: 0
@@ -2638,7 +2641,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: -175.49995}
-  m_SizeDelta: {x: -1186, y: 60}
+  m_SizeDelta: {x: -1186, y: 100}
   m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &1447474586
 MonoBehaviour:
@@ -2897,22 +2900,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e50dee7d90d4fb04d8192abd9cea24eb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gameStatePanel: {fileID: 0}
+  gameStatePanel: {fileID: 1447474585}
   gameStateText: {fileID: 122282959}
-  spawnInfoPanel: {fileID: 0}
+  spawnInfoPanel: {fileID: 1968684355}
   spawnInfoText: {fileID: 1790076085}
-  battleInfoPanel: {fileID: 0}
+  battleInfoPanel: {fileID: 1591129961}
   battleInfoText: {fileID: 140376217}
-  logPanel: {fileID: 0}
+  logPanel: {fileID: 681519157}
   logText: {fileID: 365753371}
   maxLogEntries: 10
   showTimestamps: 1
-  useColoredPanels: 1
+  useColoredText: 1
   debugMode: 1
-  gameStatePanelColor: {r: 0.2, g: 0.2, b: 0.3, a: 0.8}
-  spawnInfoPanelColor: {r: 0.2, g: 0.3, b: 0.2, a: 0.8}
-  battleInfoPanelColor: {r: 0.3, g: 0.2, b: 0.2, a: 0.8}
-  logPanelColor: {r: 0.25, g: 0.25, b: 0.25, a: 0.8}
 --- !u!4 &1583830200
 Transform:
   m_ObjectHideFlags: 0
@@ -4241,6 +4240,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1885633463}
   - component: {fileID: 1885633462}
+  - component: {fileID: 1885633464}
   m_Layer: 0
   m_Name: UIManager
   m_TagString: Untagged
@@ -4290,6 +4290,40 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1885633464
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1885633461}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8b8b3eb4bc7393f448e9123ffb529790, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  panelBackgroundColor: {r: 0.8, g: 0.7, b: 0.5, a: 0.2901961}
+  panelHeaderColor: {r: 0.6, g: 0.4, b: 0.2, a: 0.78039217}
+  buttonNormalColor: {r: 0.6, g: 0.4, b: 0.2, a: 1}
+  buttonHighlightColor: {r: 0.7, g: 0.5, b: 0.3, a: 1}
+  buttonPressedColor: {r: 0.5, g: 0.3, b: 0.1, a: 1}
+  buttonDisabledColor: {r: 0.5, g: 0.5, b: 0.5, a: 0.5}
+  headerTextColor: {r: 1, g: 1, b: 1, a: 0.98039216}
+  standardTextColor: {r: 1, g: 0.884434, b: 0.7688679, a: 1}
+  buttonTextColor: {r: 1, g: 1, b: 1, a: 1}
+  positiveTextColor: {r: 0.3066038, g: 1, b: 0.54948515, a: 1}
+  negativeTextColor: {r: 1, g: 0.6084906, b: 0.6084906, a: 1}
+  highlightTextColor: {r: 1, g: 0.6768868, b: 0.3537736, a: 1}
+  shadowColor: {r: 0, g: 0, b: 0, a: 0.5}
+  shadowOffset: {x: 2, y: -2}
+  buttonAnimationDuration: 0.05
+  panelFadeDuration: 0.5
+  panelSprite: {fileID: 0}
+  buttonSprite: {fileID: 0}
+  buttonHighlightSprite: {fileID: 0}
+  buttonPressedSprite: {fileID: 0}
+  useAnimatedEffects: 1
+  flashDuration: 0.3
 --- !u!1 &1940676167
 GameObject:
   m_ObjectHideFlags: 0

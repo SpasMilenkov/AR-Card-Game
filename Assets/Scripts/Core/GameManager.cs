@@ -45,6 +45,7 @@ public class GameManager : MonoBehaviour
     [Header("Core References")]
     public UIManager uiManager;
     public CombatSystem combatSystem;
+    private AudioManager audioManager;
     #endregion
 
     #region Unit Management
@@ -73,7 +74,7 @@ public class GameManager : MonoBehaviour
     // Spacing between monster units (in meters)
     [Tooltip("Space between each monster unit (in meters)")]
     [Range(0.1f, 1.0f)]
-    public float monsterSpacing = 0.10f; // Increase from 0.3f to better separate monsters
+    public float monsterSpacing = 0.10f;
     #endregion
 
     #region Debug
@@ -81,7 +82,6 @@ public class GameManager : MonoBehaviour
     public bool showDebugInfo = true;
     public bool drawDebugLines = true;
 
-    // Visual debug gizmos for spawn positions
     private Vector3[] debugSpawnPositions = new Vector3[3];
     #endregion
 
@@ -93,10 +93,10 @@ public class GameManager : MonoBehaviour
 
     private void Start()
     {
-        // Initialize the game
+        audioManager = AudioManager.Instance;
+
         SetGameState(GameState.Setup);
 
-        // Ensure UI panels are hidden
         if (uiManager != null)
         {
             uiManager.HideAllPanels();
@@ -107,12 +107,16 @@ public class GameManager : MonoBehaviour
             Debug.Log("GameManager initialized in Setup state. Ready for card detection.");
         }
 
-        // Initialize the info layer if available
         if (GameInfoLayer.Instance != null)
         {
             GameInfoLayer.Instance.ClearAllInfo();
             GameInfoLayer.Instance.UpdateGameStateInfo(currentState);
             GameInfoLayer.Instance.AddLogEntry("Game initialized. Place your cards to begin.");
+        }
+
+        if (audioManager != null)
+        {
+            audioManager.PlayMusic(audioManager.battleTheme);
         }
     }
 
@@ -153,6 +157,7 @@ public class GameManager : MonoBehaviour
     }
 
     #region Player Unit Spawning
+
     /// <summary>
     /// Spawns a player unit at the position of a detected card
     /// Let Vuforia handle the positioning completely
@@ -174,14 +179,12 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Log spawn info
-        if (showDebugInfo)
-        {
-            Debug.Log($"Spawning unit type {unitType} as child of card {cardTransform.name}");
-        }
-
-        // Create the unit directly as a child of the card
         GameObject unitObject = Instantiate(playerUnitPrefabs[unitType], cardTransform);
+
+        if (audioManager != null)
+        {
+            audioManager.PlayCardPlacedSound();
+        }
 
         PlayerUnit unit = unitObject.GetComponent<PlayerUnit>();
         if (unit == null)
@@ -198,11 +201,9 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        // Add to active units list
         playerUnits.Add(unit);
 
 
-        // Update the info layer
         if (GameInfoLayer.Instance != null)
         {
             string unitName = (unitType >= 0 && unitType < UnitTypeNames.Length)
@@ -212,7 +213,6 @@ public class GameManager : MonoBehaviour
             GameInfoLayer.Instance.RegisterUnitSpawn(unit.unitName, true);
             GameInfoLayer.Instance.UpdateSpawnInfo();
 
-            // Update remaining count
             int remaining = 3 - playerUnits.Count;
             if (remaining > 0)
             {
@@ -224,17 +224,14 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // If we have the first unit, spawn monsters
         if (playerUnits.Count == 1)
         {
-            // Small delay before spawning monsters for better visual effect
             Invoke("SpawnMonsters", 0.5f);
         }
 
         // If we have reached 3 units, start the battle
         if (playerUnits.Count == 3)
         {
-            // Small delay before starting battle
             Invoke("StartBattle", 1.0f);
         }
     }
@@ -246,13 +243,11 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void SpawnMonsters()
     {
-        // Update info layer
         if (GameInfoLayer.Instance != null)
         {
             GameInfoLayer.Instance.AddLogEntry("Spawning monster units...");
         }
 
-        // Clear any existing monsters
         ClearMonsterUnits();
 
         // Randomly select monster types (unique selections)
@@ -273,18 +268,11 @@ public class GameManager : MonoBehaviour
         // Base position for monsters (in front of players)
         Vector3 basePosition = playerCenter + (forwardDir * monsterDistance);
 
-        // Log spawn details
-        if (showDebugInfo)
-        {
-            Debug.Log($"Monster spawn base: {basePosition}, Player center: {playerCenter}");
-            Debug.Log($"Forward: {forwardDir}, Right: {rightDir}");
-        }
 
         // Spawn three monsters in a line
         for (int i = 0; i < 3; i++)
         {
             // Position: center monster directly in front, others to sides
-            // Use a larger offset multiplier to increase separation
             float offset = (i - 1) * monsterSpacing;
             Vector3 spawnPos = basePosition + (rightDir * offset);
 
@@ -305,16 +293,19 @@ public class GameManager : MonoBehaviour
             if (i < selectedTypes.Count && i < monsterUnitPrefabs.Length)
             {
                 GameObject monsterObj = Instantiate(monsterUnitPrefabs[selectedTypes[i]], spawnPos, rotation);
+
+                // Play monster spawn sound
+                if (audioManager != null && i == 0)
+                {
+                    audioManager.PlayMonsterAttackSound();
+                }
+
                 MonsterUnit monster = monsterObj.GetComponent<MonsterUnit>();
 
                 if (monster != null)
                 {
                     monsterUnits.Add(monster);
 
-                    if (showDebugInfo)
-                    {
-                        Debug.Log($"Monster {i} spawned at: {spawnPos}");
-                    }
 
                     // Update the info layer
                     if (GameInfoLayer.Instance != null)
@@ -366,30 +357,22 @@ public class GameManager : MonoBehaviour
             center = sum / validUnits;
         }
 
-        // --- AR SPECIFIC MODIFICATION ---
-        // For AR games, we should use the camera position to determine direction
+        // --- AR SPECIFIC ---
+
         if (Camera.main != null)
         {
-            // Get the direction from camera to player center
             Vector3 cameraToPlayerDir = (center - Camera.main.transform.position).normalized;
 
-            // Project this onto the horizontal plane (assume Y is up)
             cameraToPlayerDir.y = 0;
             cameraToPlayerDir = cameraToPlayerDir.normalized;
 
-            // Forward is the direction from players to monsters (away from camera)
             forward = cameraToPlayerDir;
 
-            // Right is perpendicular to forward
             right = Vector3.Cross(Vector3.up, forward).normalized;
 
-            // Log for debugging
-            Debug.Log($"AR Formation - Camera: {Camera.main.transform.position}, Center: {center}");
-            Debug.Log($"AR Formation - Forward: {forward}, Right: {right}");
         }
         else
         {
-            // Fallback if Camera.main is null
             forward = Vector3.forward;
             right = Vector3.right;
         }
@@ -423,10 +406,14 @@ public class GameManager : MonoBehaviour
             Debug.Log("Starting battle");
         }
 
-        // Update info layer
         if (GameInfoLayer.Instance != null)
         {
             GameInfoLayer.Instance.AddLogEntry("Battle starting! Player turn first.");
+        }
+
+        if (audioManager != null)
+        {
+            audioManager.PlayGameStateMusic(GameState.PlayerTurn);
         }
 
         SetGameState(GameState.PlayerTurn);
@@ -440,10 +427,8 @@ public class GameManager : MonoBehaviour
     {
         Debug.Log("Starting player turn");
 
-        // Clear the list of units that have acted this turn
         _unitsActedThisTurn.Clear();
 
-        // Reset cooldowns on all player units
         int unitsReadied = 0;
         foreach (var unit in playerUnits)
         {
@@ -468,21 +453,17 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"Readied {unitsReadied} player units for the turn");
 
-        // Reset any turn-specific effects (like Knight's shield)
         foreach (var unit in playerUnits)
         {
-            if (unit != null && unit is Knight knight)
+            if (unit != null && unit is Knight knight && unit.isAlive)
             {
                 knight.StartTurn();
             }
         }
 
-        // Select the first active unit
         SetNextActivePlayerUnit();
     }
-    /// <summary>
-    /// Sets the next available player unit as active
-    /// </summary>
+
     /// <summary>
     /// Sets the next available player unit as active
     /// </summary>
@@ -527,10 +508,8 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Update UI based on selected unit
         if (currentActiveUnit != null)
         {
-            Debug.Log($"Setting active unit: {currentActiveUnit.unitName}");
 
             if (uiManager != null)
             {
@@ -542,6 +521,11 @@ public class GameManager : MonoBehaviour
             {
                 GameInfoLayer.Instance.AddLogEntry($"Active unit: {currentActiveUnit.unitName}");
                 GameInfoLayer.Instance.UpdateBattleInfo();
+            }
+
+            if (audioManager != null)
+            {
+                audioManager.PlayButtonClickSound();
             }
         }
         else
@@ -557,7 +541,6 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void EndPlayerTurn()
     {
-        // Process end-of-turn effects for all player units
         foreach (var unit in playerUnits)
         {
             if (unit != null && unit.isAlive)
@@ -570,11 +553,15 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Update info layer with detailed information
         if (GameInfoLayer.Instance != null)
         {
             GameInfoLayer.Instance.AddLogEntry("==== PLAYER TURN ENDING ====");
             GameInfoLayer.Instance.AddLogEntry("Transitioning to monster turn...");
+        }
+
+        if (audioManager != null)
+        {
+            audioManager.PlayButtonClickSound();
         }
 
         SetGameState(GameState.MonsterTurn);
@@ -588,7 +575,6 @@ public class GameManager : MonoBehaviour
     {
         int aliveMonsters = 0;
 
-        // Count alive monsters for debugging
         foreach (var monster in monsterUnits)
         {
             if (monster != null && monster.isAlive)
@@ -603,12 +589,10 @@ public class GameManager : MonoBehaviour
             GameInfoLayer.Instance.AddLogEntry($"Active monsters: {aliveMonsters}");
         }
 
-        // Reset all monsters for new turn
         foreach (var monster in monsterUnits)
         {
             if (monster != null && monster.isAlive)
             {
-                // Special monster type handling
                 if (monster is Troll)
                 {
                     GameInfoLayer.Instance?.AddLogEntry($"Troll {monster.unitName} starting turn");
@@ -629,15 +613,13 @@ public class GameManager : MonoBehaviour
     /// <summary>
     /// Coroutine to process monster actions with slight delays
     /// </summary>
-    private System.Collections.IEnumerator ProcessMonsterActions()
+    private IEnumerator ProcessMonsterActions()
     {
-        // Update info layer
         if (GameInfoLayer.Instance != null)
         {
             GameInfoLayer.Instance.AddLogEntry("Monsters choosing targets...");
         }
 
-        // Short initial delay
         yield return new WaitForSeconds(0.5f);
 
         int attackingMonsters = 0;
@@ -656,13 +638,16 @@ public class GameManager : MonoBehaviour
                 }
 
                 // First, handle special monster-specific "StartTurn" behavior
-                if (monster is Troll troll)
+                if (monster is Troll trollUnit)
                 {
-                    troll.StartTurn();
+                    trollUnit.StartTurn();
+                    // Add delay for regeneration animation to complete
+                    yield return new WaitForSeconds(1.0f);
                 }
-                else if (monster is SkeletonArcher archer)
+                else if (monster is SkeletonArcher archerUnit)
                 {
-                    archer.StartTurn();
+                    archerUnit.StartTurn();
+                    yield return new WaitForSeconds(0.3f);
                 }
 
                 // Visual indicator that this monster is acting
@@ -671,7 +656,6 @@ public class GameManager : MonoBehaviour
                 // Small delay before action
                 yield return new WaitForSeconds(0.3f);
 
-                // Debug player units availability
                 int alivePlayerUnits = 0;
                 foreach (var player in playerUnits)
                 {
@@ -689,7 +673,6 @@ public class GameManager : MonoBehaviour
 
                 if (target != null)
                 {
-                    // Update info layer before attack
                     if (GameInfoLayer.Instance != null)
                     {
                         GameInfoLayer.Instance.AddLogEntry($"{monster.unitName} targeting {target.unitName}...");
@@ -697,30 +680,67 @@ public class GameManager : MonoBehaviour
                     }
 
                     // Show line connecting attacker to target
-                    ShowAttackLine(monster.transform.position, target.transform.position);
+                    if (CombatSystem.Instance != null)
+                    {
+                        CombatSystem.Instance.ShowAttackLine(monster.transform.position, target.transform.position, false);
+                    }
+                    else
+                    {
+                        ShowAttackLine(monster.transform.position, target.transform.position);
+                    }
 
                     // Small delay before attack
                     yield return new WaitForSeconds(0.3f);
 
-                    // Attack using monster's specific attack method (returns damage dealt)
-                    int damage = monster.Attack(target);
+                    // Get expected damage for monsters that track it
+                    int expectedDamage = 0;
+                    if (monster is SkeletonArcher skeletonArcher)
+                    {
+                        // Check if using volley this turn
+                        expectedDamage = skeletonArcher.PerformAttack(target);
+                    }
+                    else if (monster is Troll trollAttacker)
+                    {
+                        // Check if troll can attack this turn
+                        expectedDamage = trollAttacker.PerformAttack(target);
+                    }
+                    else if (monster is DarkWizard wizard)
+                    {
+                        // Different spell types
+                        expectedDamage = wizard.PerformAttack(target);
+                    }
+                    else
+                    {
+                        expectedDamage = monster.PerformAttack(target);
+                    }
 
-                    // Update info layer after attack
+                    // Attack - starts the animation sequence
+                    // Damage is applied after animation plays through the coroutine
+                    monster.Attack(target);
+
+                    // For Dark Wizard's AoE spell and Skeleton Archer's volley, we wait longer
+                    if (monster is DarkWizard || monster is SkeletonArcher)
+                    {
+                        yield return new WaitForSeconds(2.0f);
+                    }
+                    else
+                    {
+                        // Wait for attack animation and effects to complete
+                        yield return new WaitForSeconds(1.0f);
+                    }
+
                     if (GameInfoLayer.Instance != null)
                     {
-                        GameInfoLayer.Instance.AddLogEntry($"Attack complete - Damage dealt: {damage}");
+                        GameInfoLayer.Instance.AddLogEntry($"Attack complete - Expected damage: {expectedDamage}");
                         GameInfoLayer.Instance.AddLogEntry($"Target health after: {target.currentHealth}/{target.maxHealth}");
                     }
 
-                    if (damage > 0)
+                    if (expectedDamage > 0)
                     {
                         successfulAttacks++;
-                        // Only play effect if damage was actually dealt (some monsters might skip turns)
-                        PlayHitEffect(target.transform.position);
                     }
 
-                    // Slight delay between monster turns
-                    yield return new WaitForSeconds(0.7f);
+                    yield return new WaitForSeconds(0.5f);
                 }
                 else
                 {
@@ -743,7 +763,6 @@ public class GameManager : MonoBehaviour
             GameInfoLayer.Instance.AddLogEntry("Monster turn complete");
         }
 
-        // End monster turn
         EndMonsterTurn();
     }
 
@@ -862,10 +881,8 @@ public class GameManager : MonoBehaviour
     /// </summary>
     private void EndMonsterTurn()
     {
-        // Check if the game is over
         CheckBattleStatus();
 
-        // If game isn't over, start player turn
         if (currentState != GameState.Victory && currentState != GameState.Defeat)
         {
             SetGameState(GameState.PlayerTurn);
@@ -899,6 +916,12 @@ public class GameManager : MonoBehaviour
                 GameInfoLayer.Instance.AddLogEntry("DEFEAT! All player units have been defeated.");
             }
 
+            // Play defeat sound
+            if (audioManager != null)
+            {
+                audioManager.PlayDefeatSound();
+            }
+
             if (uiManager != null)
             {
                 uiManager.ShowGameOverScreen(false);
@@ -927,18 +950,15 @@ public class GameManager : MonoBehaviour
                 GameInfoLayer.Instance.AddLogEntry("VICTORY! All monsters have been defeated.");
             }
 
+            // Play victory sound
+            if (audioManager != null)
+            {
+                audioManager.PlayVictorySound();
+            }
+
             if (uiManager != null)
             {
                 uiManager.ShowGameOverScreen(true);
-            }
-        }
-
-        // Update any special unit states
-        foreach (var unit in playerUnits)
-        {
-            if (unit != null && unit.isAlive && unit is Knight knight)
-            {
-                knight.EndTurn();
             }
         }
     }
@@ -950,10 +970,8 @@ public class GameManager : MonoBehaviour
     {
         if (currentState != newState)
         {
-            // Store old state for info purposes
             GameState oldState = currentState;
 
-            // Set new state
             currentState = newState;
 
             if (showDebugInfo)
@@ -961,10 +979,14 @@ public class GameManager : MonoBehaviour
                 Debug.Log($"Game state changed from {oldState} to {newState}");
             }
 
-            // Update the info layer
             if (GameInfoLayer.Instance != null)
             {
                 GameInfoLayer.Instance.UpdateGameStateInfo(newState);
+            }
+
+            if (audioManager != null)
+            {
+                audioManager.PlayGameStateMusic(newState);
             }
         }
     }
@@ -1025,11 +1047,15 @@ public class GameManager : MonoBehaviour
             GameInfoLayer.Instance.AddLogEntry("Game restarted. Place your cards to begin.");
         }
 
+        // Play menu music
+        if (audioManager != null)
+        {
+            audioManager.PlayMusic(audioManager.menuTheme);
+        }
+
         if (showDebugInfo)
         {
             Debug.Log("Game restarted");
         }
     }
-
-
 }

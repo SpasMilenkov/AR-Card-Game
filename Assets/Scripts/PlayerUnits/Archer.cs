@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class Archer : PlayerUnit
 {
@@ -14,6 +15,10 @@ public class Archer : PlayerUnit
         attackDamage = 15;
         unitType = UnitType.Ranged;
         abilityCooldown = 2;
+
+        // Set animation timing properties
+        attackAnimationDelay = 0.5f; // Standard bow draw time
+        abilityAnimationDelay = 0.7f; // Aimed shot takes a bit longer
     }
 
     // Override regular attack to play a ranged attack animation
@@ -21,12 +26,31 @@ public class Archer : PlayerUnit
     {
         if (target != null && target.isAlive)
         {
-            // Play bow attack animation
-            if (animator != null)
+            // Play archer attack sound
+            if (AudioManager.Instance != null)
             {
-                animator.SetTrigger("Attack");
+                AudioManager.Instance.PlayArcherAttackSound();
             }
 
+            StartCoroutine(PlayRangedAttackAnimation(target));
+        }
+    }
+
+    // Coroutine for ranged attack animation timing
+    private IEnumerator PlayRangedAttackAnimation(Unit target)
+    {
+        // Play bow attack animation
+        if (animator != null)
+        {
+            animator.SetTrigger("Attack");
+        }
+
+        // Wait for animation to reach the "shoot" point
+        yield return new WaitForSeconds(attackAnimationDelay);
+
+        // Now apply damage if target is still valid
+        if (target != null && target.isAlive)
+        {
             Debug.Log(unitName + " shoots an arrow at " + target.unitName + " for " + attackDamage + " damage!");
             target.TakeDamage(attackDamage);
 
@@ -39,14 +63,14 @@ public class Archer : PlayerUnit
     }
 
     // Aimed Shot ability: high damage to a single target
-    public override void UseAbility(Unit[] targets)
+    protected override void ApplyAbilityEffects(Unit[] targets)
     {
-        if (CanUseAbility() && targets.Length > 0)
+        if (targets.Length > 0)
         {
-            // Play aimed shot animation
-            if (animator != null)
+            // Play archer ability sound
+            if (AudioManager.Instance != null)
             {
-                animator.SetTrigger("Ability");
+                AudioManager.Instance.PlayArcherAttackSound();
             }
 
             // Target first unit in the array (should be the selected target)
@@ -60,10 +84,13 @@ public class Archer : PlayerUnit
                 // Visual feedback
                 Debug.Log(unitName + " uses Aimed Shot on " + target.unitName +
                           " for " + abilityDamage + " damage!");
-            }
 
-            // Set cooldown
-            currentCooldown = abilityCooldown;
+                // Update game info layer
+                if (GameInfoLayer.Instance != null)
+                {
+                    GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "hits with Aimed Shot", abilityDamage);
+                }
+            }
         }
     }
 }

@@ -1,5 +1,5 @@
 using UnityEngine;
-using System.Collections.Generic;
+using System.Collections;
 
 public class Mage : PlayerUnit
 {
@@ -17,17 +17,21 @@ public class Mage : PlayerUnit
         attackDamage = 10; // Low basic attack
         unitType = UnitType.Spellcaster;
         abilityCooldown = 2;
+
+        // Set animation timing properties
+        attackAnimationDelay = 0.6f; // Spell casting takes a bit longer
+        abilityAnimationDelay = 0.8f; // Fireball takes longer to cast
     }
 
-    // Fireball ability: AoE damage (primary target + adjacent units)
-    public override void UseAbility(Unit[] targets)
+    // Override for applying ability effects
+    protected override void ApplyAbilityEffects(Unit[] targets)
     {
-        if (CanUseAbility() && targets.Length > 0)
+        if (targets.Length > 0)
         {
-            // Play fireball casting animation
-            if (animator != null)
+            // Play fireball sound
+            if (AudioManager.Instance != null)
             {
-                animator.SetTrigger("Ability");
+                AudioManager.Instance.PlayMageAbilitySound();
             }
 
             // Primary target is first in array
@@ -54,23 +58,40 @@ public class Mage : PlayerUnit
                           " damage to primary target, splash damage to " +
                           (targets.Length - 1) + " additional targets!");
             }
-
-            // Set cooldown
-            currentCooldown = abilityCooldown;
         }
     }
 
-    // Override regular attack to play a spell casting animation instead of melee
+    // Override basic attack to play a spell casting animation
     public override void Attack(Unit target)
     {
         if (target != null && target.isAlive)
         {
-            // Play spell casting animation for basic attack
-            if (animator != null)
+            // Play spell attack sound
+            if (AudioManager.Instance != null)
             {
-                animator.SetTrigger("Attack");
+                AudioManager.Instance.PlaySFX(AudioManager.Instance.fireballCast);
             }
 
+            // Start spell attack animation with proper timing
+            StartCoroutine(PlaySpellAttackAnimation(target));
+        }
+    }
+
+    // Coroutine for spell attack animation timing
+    private IEnumerator PlaySpellAttackAnimation(Unit target)
+    {
+        // Play spell casting animation for basic attack
+        if (animator != null)
+        {
+            animator.SetTrigger("Attack");
+        }
+
+        // Wait for animation to reach the "hit" point
+        yield return new WaitForSeconds(attackAnimationDelay);
+
+        // Now apply damage if target is still valid
+        if (target != null && target.isAlive)
+        {
             Debug.Log(unitName + " casts a bolt at " + target.unitName + " for " + attackDamage + " damage!");
             target.TakeDamage(attackDamage);
 

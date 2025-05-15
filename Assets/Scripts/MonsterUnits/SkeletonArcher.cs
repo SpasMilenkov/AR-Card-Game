@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class SkeletonArcher : MonsterUnit
 {
@@ -6,6 +7,7 @@ public class SkeletonArcher : MonsterUnit
     public float arrowDamageMultiplier = 0.4f; // Each arrow does 40% damage
     private int turnCounter = 0;
     private int volleyInterval = 3; // Use volley every 3 turns
+    private bool useVolleyThisTurn = false;
 
     private void Awake()
     {
@@ -18,12 +20,16 @@ public class SkeletonArcher : MonsterUnit
         attackDamage = 12;
         unitType = UnitType.Ranged;
         aggressiveness = 0.6f; // Targets squishier units
+
+        // Set animation timing properties
+        attackAnimationDelay = 0.5f; // Standard bow draw time
     }
 
     // Track turns for special attack
     public void StartTurn()
     {
         turnCounter++;
+        useVolleyThisTurn = (turnCounter >= volleyInterval);
 
         // Update animation state or parameters if needed
         if (animator != null && turnCounter >= volleyInterval - 1)
@@ -46,30 +52,23 @@ public class SkeletonArcher : MonsterUnit
         }
     }
 
-    // Changed return type to int
-    public override int Attack(Unit target)
+    // Override attack animation to handle volley
+    protected override IEnumerator PlayMonsterAttackAnimation(Unit target)
     {
         // Check if it's time for volley attack
-        if (turnCounter >= volleyInterval)
+        if (useVolleyThisTurn)
         {
-            // Play volley animation
-            if (animator != null)
-            {
-                // You can use "Ability" for the volley animation if you don't have a specific one
-                animator.SetTrigger("Ability");
-            }
+            yield return StartCoroutine(PlayVolleyAttackAnimation(target));
 
-            // Reset counter
+            // Reset counter and volley flag
             turnCounter = 0;
+            useVolleyThisTurn = false;
 
             // Reset animation state
             if (animator != null)
             {
                 animator.SetBool("PreparingVolley", false);
             }
-
-            // Perform volley attack
-            return VolleyAttack(target);
         }
         else
         {
@@ -79,7 +78,10 @@ public class SkeletonArcher : MonsterUnit
                 animator.SetTrigger("Attack");
             }
 
-            // Normal attack
+            // Wait for animation to reach the "shoot" point
+            yield return new WaitForSeconds(attackAnimationDelay);
+
+            // Apply damage if target is still valid
             if (target != null && target.isAlive)
             {
                 target.TakeDamage(attackDamage);
@@ -89,21 +91,21 @@ public class SkeletonArcher : MonsterUnit
                 {
                     GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "shoots", attackDamage);
                 }
-                return attackDamage;
             }
-            return 0;
         }
     }
 
-    // Changed to return int for total damage
-    private int VolleyAttack(Unit target)
+    // Volley attack animation with proper timing
+    private IEnumerator PlayVolleyAttackAnimation(Unit target)
     {
         if (target == null || !target.isAlive)
-            return 0;
+            yield break;
 
-        Debug.Log(unitName + " fires a volley of " + volleyArrowCount + " arrows!");
-        int arrowDamage = Mathf.RoundToInt(attackDamage * arrowDamageMultiplier);
-        int totalDamage = 0;
+        // Play volley animation
+        if (animator != null)
+        {
+            animator.SetTrigger("Ability");
+        }
 
         // Update info layer for volley start
         if (GameInfoLayer.Instance != null)
@@ -111,13 +113,32 @@ public class SkeletonArcher : MonsterUnit
             GameInfoLayer.Instance.AddLogEntry($"{unitName} fires a volley of {volleyArrowCount} arrows at {target.unitName}!");
         }
 
-        // Fire multiple arrows
+        Debug.Log(unitName + " fires a volley of " + volleyArrowCount + " arrows!");
+        int arrowDamage = Mathf.RoundToInt(attackDamage * arrowDamageMultiplier);
+        int totalDamage = 0;
+
+        // Wait for initial animation
+        yield return new WaitForSeconds(0.5f);
+
+        // Fire multiple arrows with short delays between them
         for (int i = 0; i < volleyArrowCount; i++)
         {
             if (target.isAlive)
             {
+                // Apply damage for each arrow
                 target.TakeDamage(arrowDamage);
                 totalDamage += arrowDamage;
+
+                // Play a small effect for each hit
+                if (CombatSystem.Instance != null)
+                {
+                    CombatSystem.Instance.PlayCombatEffectAt(
+                        CombatSystem.Instance.attackEffectPrefab,
+                        target.transform.position);
+                }
+
+                // Wait a short time between arrows
+                yield return new WaitForSeconds(0.2f);
             }
         }
 
@@ -128,8 +149,22 @@ public class SkeletonArcher : MonsterUnit
         {
             GameInfoLayer.Instance.RegisterBattleAction(unitName, target.unitName, "hits with volley for", totalDamage);
         }
+    }
 
-        return totalDamage;
+    // Override to return expected attack damage
+    public override int PerformAttack(Unit target)
+    {
+        if (useVolleyThisTurn)
+        {
+            // Calculate expected volley damage
+            int arrowDamage = Mathf.RoundToInt(attackDamage * arrowDamageMultiplier);
+            return arrowDamage * volleyArrowCount;
+        }
+        else
+        {
+            // Regular attack damage
+            return attackDamage;
+        }
     }
 
     // Prefer targeting spellcasters and ranged units

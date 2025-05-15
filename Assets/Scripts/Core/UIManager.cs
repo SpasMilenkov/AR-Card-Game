@@ -2,6 +2,8 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityEngine.SceneManagement;
+using System.Collections.Generic;
+using System.Collections;
 
 public class UIManager : MonoBehaviour
 {
@@ -24,18 +26,34 @@ public class UIManager : MonoBehaviour
     public Button restartButton;
 
     [Header("Layout Settings")]
-    public bool forceApplyLayoutOnStart = true;  // Enable this to force layouts on mobile
-    public bool repositionPanels = true;         // Enable to position panels
+    public bool forceApplyLayoutOnStart = true;
+    public bool repositionPanels = true;
     public Vector2 actionPanelPosition = new Vector2(0, -300);
     public Vector2 targetPanelPosition = new Vector2(0, -300);
     public Vector2 gameOverPanelPosition = new Vector2(0, 0);
 
+    // Reference to the style manager
+    private StyleManager styleManager;
+    private AudioManager audioManager;
+
     private void Awake()
     {
+        // Find or create StyleManager
+        styleManager = FindObjectOfType<StyleManager>();
+        if (styleManager == null)
+        {
+            GameObject styleObj = new GameObject("StyleManager");
+            styleManager = styleObj.AddComponent<StyleManager>();
+        }
+
+        // Get reference to audio manager
+        audioManager = AudioManager.Instance;
+
         // Apply layouts early during scene load to prevent visual glitches
         if (forceApplyLayoutOnStart)
         {
             ApplyLayoutsToAllPanels();
+            ApplyStyleToAllElements();
         }
     }
 
@@ -55,7 +73,36 @@ public class UIManager : MonoBehaviour
         HideAllPanels();
     }
 
-    // Method to ensure layouts are applied
+    // Apply style to all UI elements
+    private void ApplyStyleToAllElements()
+    {
+        if (styleManager == null) return;
+
+        // Style panels
+        styleManager.StylePanel(actionPanel, "Action Panel");
+        styleManager.StylePanel(targetSelectionPanel, "Select Target");
+        styleManager.StylePanel(gameOverPanel, "Game Over");
+
+        // Style buttons
+        styleManager.StyleButton(attackButton, "Attack");
+        styleManager.StyleButton(abilityButton, "Ability");
+        styleManager.StyleButton(restartButton, "Restart");
+
+        // Style text elements
+        if (currentUnitNameText != null)
+            styleManager.StyleText(currentUnitNameText, true);
+
+        if (currentUnitHealthText != null)
+            styleManager.StyleText(currentUnitHealthText);
+
+        if (gameResultText != null)
+            styleManager.StyleText(gameResultText, true);
+
+        if (abilityButtonText != null)
+            styleManager.StyleButtonText(abilityButtonText);
+    }
+
+    // Method to ensure layouts are applied (original method)
     public void ApplyLayoutsToAllPanels()
     {
         ApplyLayoutToPanel(actionPanel, actionPanelPosition);
@@ -63,6 +110,7 @@ public class UIManager : MonoBehaviour
         ApplyLayoutToPanel(gameOverPanel, gameOverPanelPosition);
     }
 
+    // Original layout method with minor enhancements
     private void ApplyLayoutToPanel(GameObject panel, Vector2 position)
     {
         if (panel == null)
@@ -74,8 +122,8 @@ public class UIManager : MonoBehaviour
             layoutGroup = panel.AddComponent<VerticalLayoutGroup>();
 
         // Configure layout group
-        layoutGroup.padding = new RectOffset(10, 10, 10, 10);
-        layoutGroup.spacing = 10;
+        layoutGroup.padding = new RectOffset(15, 15, 15, 15); // Increased padding
+        layoutGroup.spacing = 12; // Slightly increased spacing
         layoutGroup.childAlignment = TextAnchor.MiddleCenter;
         layoutGroup.childControlWidth = true;
         layoutGroup.childControlHeight = true;
@@ -102,7 +150,7 @@ public class UIManager : MonoBehaviour
                 rectTransform.anchoredPosition = position;
 
                 // Set a reasonable width
-                rectTransform.sizeDelta = new Vector2(300, rectTransform.sizeDelta.y);
+                rectTransform.sizeDelta = new Vector2(320, rectTransform.sizeDelta.y); // Slightly wider for better look
             }
         }
 
@@ -168,6 +216,7 @@ public class UIManager : MonoBehaviour
         }
     }
 
+    // Original methods for functionality
     public void UpdateUnitUI(PlayerUnit unit)
     {
         // Show action panel
@@ -179,14 +228,48 @@ public class UIManager : MonoBehaviour
             currentUnitNameText.text = unit.unitName;
 
         if (currentUnitHealthText != null)
+        {
+            // Style health text based on current health percentage
+            float healthPercentage = (float)unit.currentHealth / unit.maxHealth;
+
+            if (healthPercentage > 0.66f)
+                currentUnitHealthText.color = styleManager.positiveTextColor;
+            else if (healthPercentage > 0.33f)
+                currentUnitHealthText.color = new Color(0.8f, 0.6f, 0.0f); // Yellow for medium health
+            else
+                currentUnitHealthText.color = styleManager.negativeTextColor;
+
             currentUnitHealthText.text = "HP: " + unit.currentHealth + "/" + unit.maxHealth;
+        }
 
         // Update ability button
         if (abilityButtonText != null)
             abilityButtonText.text = GetAbilityName(unit);
 
         if (abilityButton != null)
+        {
             abilityButton.interactable = unit.CanUseAbility();
+
+            // Change visual appearance based on whether ability is available
+            if (abilityButton.interactable)
+            {
+                Image btnImage = abilityButton.GetComponent<Image>();
+                if (btnImage != null)
+                    btnImage.color = styleManager.buttonNormalColor;
+
+                if (abilityButtonText != null)
+                    abilityButtonText.color = styleManager.buttonTextColor;
+            }
+            else
+            {
+                Image btnImage = abilityButton.GetComponent<Image>();
+                if (btnImage != null)
+                    btnImage.color = styleManager.buttonDisabledColor;
+
+                if (abilityButtonText != null)
+                    abilityButtonText.color = new Color(0.7f, 0.7f, 0.7f);
+            }
+        }
     }
 
     private string GetAbilityName(PlayerUnit unit)
@@ -203,6 +286,16 @@ public class UIManager : MonoBehaviour
 
     private void OnAttackButtonClicked()
     {
+        // Play button click sound
+        if (audioManager != null)
+        {
+            audioManager.PlayButtonClickSound();
+        }
+
+        // Add feedback animation on click
+        if (styleManager != null)
+            StartCoroutine(styleManager.ButtonClickAnimation(attackButton));
+
         // Show target selection UI
         actionPanel.SetActive(false);
         targetSelectionPanel.SetActive(true);
@@ -214,6 +307,16 @@ public class UIManager : MonoBehaviour
 
     private void OnAbilityButtonClicked()
     {
+        // Play button click sound
+        if (audioManager != null)
+        {
+            audioManager.PlayButtonClickSound();
+        }
+
+        // Add feedback animation on click
+        if (styleManager != null)
+            StartCoroutine(styleManager.ButtonClickAnimation(abilityButton));
+
         // Show target selection UI
         actionPanel.SetActive(false);
         targetSelectionPanel.SetActive(true);
@@ -228,14 +331,61 @@ public class UIManager : MonoBehaviour
         HideAllPanels();
 
         if (gameOverPanel != null)
+        {
             gameOverPanel.SetActive(true);
 
+            // Play appropriate sound
+            if (audioManager != null)
+            {
+                if (victory)
+                    audioManager.PlayVictorySound();
+                else
+                    audioManager.PlayDefeatSound();
+
+                // Wait for game over sound to finish before playing menu music again
+                StartCoroutine(PlayMenuMusicAfterDelay(3.0f));
+            }
+
+            // Add animation for game over screen
+            if (styleManager != null)
+                StartCoroutine(styleManager.PanelFadeInAnimation(gameOverPanel));
+        }
+
         if (gameResultText != null)
+        {
+            // Update text and styling based on outcome
             gameResultText.text = victory ? "Victory!" : "Defeat!";
+            gameResultText.color = victory ? styleManager.highlightTextColor : styleManager.negativeTextColor;
+            gameResultText.fontSize += 4; // Make it larger
+
+            // Add pulsing animation effect for victory
+            if (victory)
+                StartCoroutine(VictoryTextAnimation(gameResultText));
+        }
+    }
+
+    private IEnumerator PlayMenuMusicAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (audioManager != null)
+        {
+            audioManager.PlayMusic(audioManager.menuTheme);
+        }
     }
 
     private void OnRestartButtonClicked()
     {
+        // Play button click sound
+        if (audioManager != null)
+        {
+            audioManager.PlayButtonClickSound();
+        }
+
+        // Add feedback animation on click
+        if (styleManager != null)
+            StartCoroutine(styleManager.ButtonClickAnimation(restartButton));
+
         // Check if GameManager exists and use its restart method
         if (GameManager.Instance != null)
         {
@@ -267,5 +417,29 @@ public class UIManager : MonoBehaviour
 
         if (gameOverPanel != null)
             gameOverPanel.SetActive(false);
+    }
+
+    // Keeping a few custom animations that are specific to UIManager
+    private System.Collections.IEnumerator VictoryTextAnimation(TextMeshProUGUI text)
+    {
+        if (text == null) yield break;
+
+        float duration = 2f;
+        float elapsed = 0;
+        float pulseSpeed = 3f;
+        float pulseAmount = 0.1f;
+
+        Vector3 originalScale = text.transform.localScale;
+
+        while (elapsed < duration)
+        {
+            float scale = 1 + Mathf.Sin(elapsed * pulseSpeed) * pulseAmount;
+            text.transform.localScale = originalScale * scale;
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        text.transform.localScale = originalScale;
     }
 }
